@@ -41,6 +41,7 @@
     .canvas {
       min-width: 3000px;
       padding: 10px;
+      position: relative;
     }
 
     .row {
@@ -61,6 +62,8 @@
     .matrix {
       border: 1px solid var(--grid);
       background: #fff;
+      position: relative;
+      z-index: 1;
     }
 
     .dense table.sheet th,
@@ -198,12 +201,12 @@
 
     .slot-attn-score {
       grid-column: 1 / span 2;
-      grid-row: 2;
+      grid-row: 3;
     }
 
     .slot-attn-weight {
       grid-column: 1 / span 2;
-      grid-row: 3;
+      grid-row: 2;
     }
 
     .slot-query {
@@ -262,6 +265,59 @@
       background: #ffd9d9;
       font-weight: 700 !important;
     }
+
+    #provenanceOverlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 0;
+      pointer-events: none;
+      z-index: 30;
+      overflow: visible;
+    }
+
+    .prov-line {
+      stroke: #0f172a;
+      stroke-width: 1.2;
+      opacity: 0.9;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .prov-line-sink {
+      stroke: #0369a1;
+    }
+
+    .prov-line-source {
+      stroke: #7c2d12;
+    }
+
+    table.sheet td[data-cell-id] {
+      cursor: crosshair;
+    }
+
+    table.sheet td.selected-cell {
+      outline: 2px solid #111;
+      outline-offset: -2px;
+    }
+
+    table.sheet td.source-cell {
+      box-shadow: inset 0 0 0 9999px rgba(250, 204, 21, 0.35);
+    }
+
+    table.sheet td.sink-cell {
+      box-shadow: inset 0 0 0 9999px rgba(56, 189, 248, 0.3);
+    }
+
+    table.sheet td.exact-zero {
+      color: #6b7280;
+    }
+
+    table.sheet td.exact-zero.selected-cell,
+    table.sheet td.exact-zero.source-cell,
+    table.sheet td.exact-zero.sink-cell {
+      color: var(--ink);
+    }
   </style>
 </head>
 <body>
@@ -296,6 +352,7 @@
 
       <div id="weightsSide" class="weights-side"></div>
     </div>
+    <svg id="provenanceOverlay" aria-hidden="true"></svg>
   </div>
 
   <script>
@@ -407,6 +464,261 @@
     }
 
     const WEIGHTS = buildWeights();
+    const TABLE_IDS = {
+      w_embed: "w_embed",
+      w_input_norm: "w_input_norm",
+      w_q_proj: "w_q_proj",
+      w_k_proj: "w_k_proj",
+      w_v_proj: "w_v_proj",
+      w_q_norm: "w_q_norm",
+      w_k_norm: "w_k_norm",
+      w_o_proj: "w_o_proj",
+      w_post_attn_norm: "w_post_attn_norm",
+      w_gate_proj: "w_gate_proj",
+      w_up_proj: "w_up_proj",
+      w_down_proj: "w_down_proj",
+      w_final_norm: "w_final_norm",
+      arch_hidden_top: "arch_hidden_top",
+      arch_attn_score_h0: "arch_attn_score_h0",
+      arch_attn_weight_h0: "arch_attn_weight_h0",
+      arch_query_states: "arch_query_states",
+      arch_key_states: "arch_key_states",
+      arch_value_states: "arch_value_states",
+      arch_pos_q: "arch_pos_q",
+      arch_pos_k: "arch_pos_k",
+      arch_hidden_bottom: "arch_hidden_bottom",
+      tr_embedded: "tr_embedded",
+      tr_normed: "tr_normed",
+      tr_Q: "tr_Q",
+      tr_K: "tr_K",
+      tr_V: "tr_V",
+      tr_q_heads_rope: "tr_q_heads_rope",
+      tr_attn_weight: "tr_attn_weight",
+      tr_attn_out: "tr_attn_out",
+      tr_residual1: "tr_residual1",
+      tr_post_normed: "tr_post_normed",
+      tr_gate: "tr_gate",
+      tr_up: "tr_up",
+      tr_silu_mul_up: "tr_silu_mul_up",
+      tr_mlp_out: "tr_mlp_out",
+      tr_residual2: "tr_residual2",
+      tr_final_normed: "tr_final_normed",
+      tr_logits: "tr_logits"
+    };
+
+    let CELL_ELEMENTS = new Map();
+    let CELL_PARENTS = new Map();
+    let CELL_CHILDREN = new Map();
+    let ACTIVE_CELL_ID = null;
+    let ACTIVE_TRACE_MODE = "none";
+    let REDRAW_PENDING = false;
+    let AUTO_TABLE_COUNTER = 0;
+
+    function cellId(tableId, row, col) {
+      return tableId + ":r" + row + ":c" + col;
+    }
+
+    function resetProvenanceRegistry() {
+      CELL_ELEMENTS = new Map();
+      CELL_PARENTS = new Map();
+      CELL_CHILDREN = new Map();
+      clearProvenanceOverlay();
+      clearCellHighlights();
+    }
+
+    function registerCellElement(tableId, row, col, el) {
+      const id = cellId(tableId, row, col);
+      el.dataset.cellId = id;
+      CELL_ELEMENTS.set(id, el);
+      return id;
+    }
+
+    function uniqueList(values) {
+      const out = [];
+      const seen = new Set();
+      for (let i = 0; i < values.length; i += 1) {
+        const v = values[i];
+        if (!v || seen.has(v)) {
+          continue;
+        }
+        seen.add(v);
+        out.push(v);
+      }
+      return out;
+    }
+
+    function setParents(map, childId, parentIds) {
+      map.set(childId, uniqueList(parentIds));
+    }
+
+    function fillRootTable(map, tableId, rows, cols) {
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          setParents(map, cellId(tableId, r, c), []);
+        }
+      }
+    }
+
+    function clearCellHighlights() {
+      const marked = document.querySelectorAll("td.selected-cell, td.source-cell, td.sink-cell");
+      for (let i = 0; i < marked.length; i += 1) {
+        marked[i].classList.remove("selected-cell", "source-cell", "sink-cell");
+      }
+    }
+
+    function buildChildrenMap(parentsMap) {
+      const children = new Map();
+      parentsMap.forEach((parents, child) => {
+        if (!children.has(child)) {
+          children.set(child, []);
+        }
+        for (let i = 0; i < parents.length; i += 1) {
+          const parent = parents[i];
+          if (!children.has(parent)) {
+            children.set(parent, []);
+          }
+          children.get(parent).push(child);
+        }
+      });
+      children.forEach((list, key) => {
+        children.set(key, uniqueList(list));
+      });
+      return children;
+    }
+
+    function getRelatedCells(cellId, mode) {
+      if (mode === "sink") {
+        return CELL_CHILDREN.get(cellId) || [];
+      }
+      if (mode === "source") {
+        return CELL_PARENTS.get(cellId) || [];
+      }
+      return [];
+    }
+
+    function overlayEl() {
+      return document.getElementById("provenanceOverlay");
+    }
+
+    function clearProvenanceOverlay() {
+      const overlay = overlayEl();
+      overlay.innerHTML = "";
+    }
+
+    function resizeOverlay() {
+      const canvas = document.querySelector(".canvas");
+      const overlay = overlayEl();
+      const w = Math.ceil(canvas.scrollWidth);
+      const h = Math.ceil(canvas.scrollHeight);
+      overlay.setAttribute("width", String(w));
+      overlay.setAttribute("height", String(h));
+      overlay.style.width = w + "px";
+      overlay.style.height = h + "px";
+    }
+
+    function cellCenter(el) {
+      const canvas = document.querySelector(".canvas");
+      const cellRect = el.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      return {
+        x: cellRect.left - canvasRect.left + cellRect.width / 2,
+        y: cellRect.top - canvasRect.top + cellRect.height / 2
+      };
+    }
+
+    function renderProvenanceLines() {
+      clearProvenanceOverlay();
+      if (!ACTIVE_CELL_ID || ACTIVE_TRACE_MODE === "none" || !CELL_ELEMENTS.has(ACTIVE_CELL_ID)) {
+        return;
+      }
+      resizeOverlay();
+      const overlay = overlayEl();
+      const targetEl = CELL_ELEMENTS.get(ACTIVE_CELL_ID);
+      const target = cellCenter(targetEl);
+      const related = getRelatedCells(ACTIVE_CELL_ID, ACTIVE_TRACE_MODE);
+      for (let i = 0; i < related.length; i += 1) {
+        const relatedEl = CELL_ELEMENTS.get(related[i]);
+        if (!relatedEl) {
+          continue;
+        }
+        const point = cellCenter(relatedEl);
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute(
+          "class",
+          "prov-line " + (ACTIVE_TRACE_MODE === "sink" ? "prov-line-sink" : "prov-line-source")
+        );
+        if (ACTIVE_TRACE_MODE === "sink") {
+          line.setAttribute("x1", String(target.x));
+          line.setAttribute("y1", String(target.y));
+          line.setAttribute("x2", String(point.x));
+          line.setAttribute("y2", String(point.y));
+        } else {
+          line.setAttribute("x1", String(point.x));
+          line.setAttribute("y1", String(point.y));
+          line.setAttribute("x2", String(target.x));
+          line.setAttribute("y2", String(target.y));
+        }
+        overlay.appendChild(line);
+      }
+    }
+
+    function applyTraceMode(cell, mode) {
+      if (!cell || !CELL_ELEMENTS.has(cell)) {
+        return;
+      }
+      ACTIVE_CELL_ID = cell;
+      ACTIVE_TRACE_MODE = mode;
+      clearCellHighlights();
+      clearProvenanceOverlay();
+      if (mode === "none") {
+        return;
+      }
+      const selected = CELL_ELEMENTS.get(cell);
+      selected.classList.add("selected-cell");
+      const related = getRelatedCells(cell, mode);
+      for (let i = 0; i < related.length; i += 1) {
+        const el = CELL_ELEMENTS.get(related[i]);
+        if (!el) {
+          continue;
+        }
+        if (mode === "sink") {
+          el.classList.add("sink-cell");
+        } else {
+          el.classList.add("source-cell");
+        }
+      }
+      renderProvenanceLines();
+    }
+
+    function toggleTraceForCell(cell) {
+      if (!cell || !CELL_ELEMENTS.has(cell)) {
+        return;
+      }
+      if (ACTIVE_CELL_ID !== cell) {
+        applyTraceMode(cell, "sink");
+        return;
+      }
+      if (ACTIVE_TRACE_MODE === "sink") {
+        applyTraceMode(cell, "source");
+        return;
+      }
+      if (ACTIVE_TRACE_MODE === "source") {
+        applyTraceMode(cell, "none");
+        return;
+      }
+      applyTraceMode(cell, "sink");
+    }
+
+    function scheduleProvenanceRedraw() {
+      if (!ACTIVE_CELL_ID || ACTIVE_TRACE_MODE === "none" || REDRAW_PENDING) {
+        return;
+      }
+      REDRAW_PENDING = true;
+      requestAnimationFrame(() => {
+        REDRAW_PENDING = false;
+        renderProvenanceLines();
+      });
+    }
 
     function dot(a, b) {
       let s = 0.0;
@@ -593,6 +905,12 @@
         return v;
       }
       return String(v);
+    }
+
+    function markExactZeroCell(td, textValue) {
+      if (textValue === "0") {
+        td.classList.add("exact-zero");
+      }
     }
 
     function encodeAddendsInternal(a, b) {
@@ -795,15 +1113,321 @@
       };
     }
 
+    function buildProvenance(run) {
+      const map = new Map();
+      const seq = run.pass.seq;
+      const tokens = run.fullTokens;
+      const tLen = tokens.length;
+      const last = tLen - 1;
+
+      fillRootTable(map, TABLE_IDS.w_embed, WEIGHTS.embed.length, WEIGHTS.embed[0].length);
+      fillRootTable(map, TABLE_IDS.w_input_norm, 1, WEIGHTS.input_norm.length);
+      fillRootTable(map, TABLE_IDS.w_q_proj, WEIGHTS.q_proj.length, WEIGHTS.q_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_k_proj, WEIGHTS.k_proj.length, WEIGHTS.k_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_v_proj, WEIGHTS.v_proj.length, WEIGHTS.v_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_q_norm, 1, WEIGHTS.q_norm.length);
+      fillRootTable(map, TABLE_IDS.w_k_norm, 1, WEIGHTS.k_norm.length);
+      fillRootTable(map, TABLE_IDS.w_o_proj, WEIGHTS.o_proj.length, WEIGHTS.o_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_post_attn_norm, 1, WEIGHTS.post_attn_norm.length);
+      fillRootTable(map, TABLE_IDS.w_gate_proj, WEIGHTS.gate_proj.length, WEIGHTS.gate_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_up_proj, WEIGHTS.up_proj.length, WEIGHTS.up_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_down_proj, WEIGHTS.down_proj.length, WEIGHTS.down_proj[0].length);
+      fillRootTable(map, TABLE_IDS.w_final_norm, 1, WEIGHTS.final_norm.length);
+      fillRootTable(map, TABLE_IDS.arch_pos_q, 2, tLen);
+      fillRootTable(map, TABLE_IDS.arch_pos_k, 2, tLen);
+
+      for (let t = 0; t < tLen; t += 1) {
+        const tok = tokens[t];
+        for (let d = 0; d < MODEL_DIM; d += 1) {
+          const parents = [];
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.w_embed, tok, k));
+          }
+          parents.push(cellId(TABLE_IDS.w_input_norm, 0, d));
+          setParents(map, cellId(TABLE_IDS.arch_hidden_top, d, t), parents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        for (let qIdx = 0; qIdx < ATTENTION_HEADS * HEAD_DIM; qIdx += 1) {
+          const head = Math.floor(qIdx / HEAD_DIM);
+          const dim = qIdx % HEAD_DIM;
+          const parents = [];
+          for (let r = 2 * head; r <= 2 * head + 1; r += 1) {
+            for (let k = 0; k < MODEL_DIM; k += 1) {
+              parents.push(cellId(TABLE_IDS.w_q_proj, r, k));
+            }
+          }
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
+          }
+          parents.push(cellId(TABLE_IDS.w_q_norm, 0, dim));
+          setParents(map, cellId(TABLE_IDS.arch_query_states, qIdx, t), parents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        for (let kIdx = 0; kIdx < HEAD_DIM; kIdx += 1) {
+          const parents = [];
+          for (let r = 0; r < HEAD_DIM; r += 1) {
+            for (let k = 0; k < MODEL_DIM; k += 1) {
+              parents.push(cellId(TABLE_IDS.w_k_proj, r, k));
+            }
+          }
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
+          }
+          parents.push(cellId(TABLE_IDS.w_k_norm, 0, kIdx));
+          setParents(map, cellId(TABLE_IDS.arch_key_states, kIdx, t), parents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        for (let vIdx = 0; vIdx < HEAD_DIM; vIdx += 1) {
+          const parents = [];
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.w_v_proj, vIdx, k));
+            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
+          }
+          setParents(map, cellId(TABLE_IDS.arch_value_states, vIdx, t), parents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        for (let j = 0; j < tLen; j += 1) {
+          const parents = [
+            cellId(TABLE_IDS.arch_query_states, 0, t),
+            cellId(TABLE_IDS.arch_query_states, 1, t),
+            cellId(TABLE_IDS.arch_key_states, 0, j),
+            cellId(TABLE_IDS.arch_key_states, 1, j),
+            cellId(TABLE_IDS.arch_pos_q, 0, t),
+            cellId(TABLE_IDS.arch_pos_q, 1, t),
+            cellId(TABLE_IDS.arch_pos_k, 0, j),
+            cellId(TABLE_IDS.arch_pos_k, 1, j)
+          ];
+          setParents(map, cellId(TABLE_IDS.arch_attn_score_h0, t, j), parents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        const rowParents = [];
+        for (let k = 0; k < tLen; k += 1) {
+          rowParents.push(cellId(TABLE_IDS.arch_attn_score_h0, t, k));
+        }
+        for (let j = 0; j < tLen; j += 1) {
+          setParents(map, cellId(TABLE_IDS.arch_attn_weight_h0, t, j), rowParents);
+        }
+      }
+
+      for (let t = 0; t < tLen; t += 1) {
+        for (let d = 0; d < MODEL_DIM; d += 1) {
+          const parents = [];
+          for (let comp = 0; comp < ATTENTION_HEADS * HEAD_DIM; comp += 1) {
+            const head = Math.floor(comp / HEAD_DIM);
+            const dim = comp % HEAD_DIM;
+            parents.push(cellId(TABLE_IDS.w_o_proj, d, comp));
+            for (let j = 0; j <= t; j += 1) {
+              if (head === 0) {
+                parents.push(cellId(TABLE_IDS.arch_attn_weight_h0, t, j));
+              } else if (t === last) {
+                parents.push(cellId(TABLE_IDS.tr_attn_weight, head, j));
+              }
+              parents.push(cellId(TABLE_IDS.arch_value_states, dim, j));
+            }
+          }
+          setParents(map, cellId(TABLE_IDS.arch_hidden_bottom, d, t), parents);
+        }
+      }
+
+      const tokLast = tokens[last];
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        setParents(map, cellId(TABLE_IDS.tr_embedded, 0, d), [
+          cellId(TABLE_IDS.w_embed, tokLast, d)
+        ]);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        const parents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_embedded, 0, k));
+        }
+        parents.push(cellId(TABLE_IDS.w_input_norm, 0, d));
+        setParents(map, cellId(TABLE_IDS.tr_normed, 0, d), parents);
+      }
+
+      for (let qIdx = 0; qIdx < ATTENTION_HEADS * HEAD_DIM; qIdx += 1) {
+        const head = Math.floor(qIdx / HEAD_DIM);
+        const dim = qIdx % HEAD_DIM;
+        const parents = [];
+        for (let r = 2 * head; r <= 2 * head + 1; r += 1) {
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.w_q_proj, r, k));
+          }
+        }
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
+        }
+        parents.push(cellId(TABLE_IDS.w_q_norm, 0, dim));
+        setParents(map, cellId(TABLE_IDS.tr_Q, 0, qIdx), parents);
+      }
+
+      for (let kIdx = 0; kIdx < HEAD_DIM; kIdx += 1) {
+        const parents = [];
+        for (let r = 0; r < HEAD_DIM; r += 1) {
+          for (let k = 0; k < MODEL_DIM; k += 1) {
+            parents.push(cellId(TABLE_IDS.w_k_proj, r, k));
+          }
+        }
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
+        }
+        parents.push(cellId(TABLE_IDS.w_k_norm, 0, kIdx));
+        setParents(map, cellId(TABLE_IDS.tr_K, 0, kIdx), parents);
+      }
+
+      for (let vIdx = 0; vIdx < HEAD_DIM; vIdx += 1) {
+        const parents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.w_v_proj, vIdx, k));
+          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
+        }
+        setParents(map, cellId(TABLE_IDS.tr_V, 0, vIdx), parents);
+      }
+
+      for (let idx = 0; idx < ATTENTION_HEADS * HEAD_DIM; idx += 1) {
+        const head = Math.floor(idx / HEAD_DIM);
+        const pairBase = head * HEAD_DIM;
+        const parents = [
+          cellId(TABLE_IDS.tr_Q, 0, pairBase),
+          cellId(TABLE_IDS.tr_Q, 0, pairBase + 1),
+          cellId(TABLE_IDS.arch_pos_q, 0, last),
+          cellId(TABLE_IDS.arch_pos_q, 1, last)
+        ];
+        setParents(map, cellId(TABLE_IDS.tr_q_heads_rope, 0, idx), parents);
+      }
+
+      for (let h = 0; h < ATTENTION_HEADS; h += 1) {
+        const rowParents = [];
+        if (h === 0) {
+          for (let k = 0; k <= last; k += 1) {
+            rowParents.push(cellId(TABLE_IDS.arch_attn_score_h0, last, k));
+          }
+        } else {
+          const qBase = h * HEAD_DIM;
+          rowParents.push(cellId(TABLE_IDS.arch_query_states, qBase, last));
+          rowParents.push(cellId(TABLE_IDS.arch_query_states, qBase + 1, last));
+          rowParents.push(cellId(TABLE_IDS.arch_pos_q, 0, last));
+          rowParents.push(cellId(TABLE_IDS.arch_pos_q, 1, last));
+          for (let k = 0; k <= last; k += 1) {
+            rowParents.push(cellId(TABLE_IDS.arch_key_states, 0, k));
+            rowParents.push(cellId(TABLE_IDS.arch_key_states, 1, k));
+            rowParents.push(cellId(TABLE_IDS.arch_pos_k, 0, k));
+            rowParents.push(cellId(TABLE_IDS.arch_pos_k, 1, k));
+          }
+        }
+        for (let j = 0; j <= last; j += 1) {
+          setParents(map, cellId(TABLE_IDS.tr_attn_weight, h, j), rowParents);
+        }
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        const parents = [];
+        for (let comp = 0; comp < ATTENTION_HEADS * HEAD_DIM; comp += 1) {
+          const h = Math.floor(comp / HEAD_DIM);
+          const dim = comp % HEAD_DIM;
+          parents.push(cellId(TABLE_IDS.w_o_proj, d, comp));
+          for (let j = 0; j <= last; j += 1) {
+            parents.push(cellId(TABLE_IDS.tr_attn_weight, h, j));
+            parents.push(cellId(TABLE_IDS.arch_value_states, dim, j));
+          }
+        }
+        setParents(map, cellId(TABLE_IDS.tr_attn_out, 0, d), parents);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        setParents(map, cellId(TABLE_IDS.tr_residual1, 0, d), [
+          cellId(TABLE_IDS.tr_embedded, 0, d),
+          cellId(TABLE_IDS.tr_attn_out, 0, d)
+        ]);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        const parents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_residual1, 0, k));
+        }
+        parents.push(cellId(TABLE_IDS.w_post_attn_norm, 0, d));
+        setParents(map, cellId(TABLE_IDS.tr_post_normed, 0, d), parents);
+      }
+
+      for (let row = 0; row < INTERMEDIATE_SIZE; row += 1) {
+        const gateParents = [];
+        const upParents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          gateParents.push(cellId(TABLE_IDS.tr_post_normed, 0, k));
+          gateParents.push(cellId(TABLE_IDS.w_gate_proj, row, k));
+          upParents.push(cellId(TABLE_IDS.tr_post_normed, 0, k));
+          upParents.push(cellId(TABLE_IDS.w_up_proj, row, k));
+        }
+        setParents(map, cellId(TABLE_IDS.tr_gate, 0, row), gateParents);
+        setParents(map, cellId(TABLE_IDS.tr_up, 0, row), upParents);
+      }
+
+      for (let i = 0; i < INTERMEDIATE_SIZE; i += 1) {
+        setParents(map, cellId(TABLE_IDS.tr_silu_mul_up, 0, i), [
+          cellId(TABLE_IDS.tr_gate, 0, i),
+          cellId(TABLE_IDS.tr_up, 0, i)
+        ]);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        const parents = [];
+        for (let k = 0; k < INTERMEDIATE_SIZE; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_silu_mul_up, 0, k));
+          parents.push(cellId(TABLE_IDS.w_down_proj, d, k));
+        }
+        setParents(map, cellId(TABLE_IDS.tr_mlp_out, 0, d), parents);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        setParents(map, cellId(TABLE_IDS.tr_residual2, 0, d), [
+          cellId(TABLE_IDS.tr_residual1, 0, d),
+          cellId(TABLE_IDS.tr_mlp_out, 0, d)
+        ]);
+      }
+
+      for (let d = 0; d < MODEL_DIM; d += 1) {
+        const parents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_residual2, 0, k));
+        }
+        parents.push(cellId(TABLE_IDS.w_final_norm, 0, d));
+        setParents(map, cellId(TABLE_IDS.tr_final_normed, 0, d), parents);
+      }
+
+      for (let digit = 0; digit < VOCAB_SIZE; digit += 1) {
+        const parents = [];
+        for (let k = 0; k < MODEL_DIM; k += 1) {
+          parents.push(cellId(TABLE_IDS.tr_final_normed, 0, k));
+          parents.push(cellId(TABLE_IDS.w_embed, digit, k));
+        }
+        setParents(map, cellId(TABLE_IDS.tr_logits, 0, digit), parents);
+      }
+
+      return map;
+    }
+
     function makeMatrix(name, matrix, klass, opts) {
       const options = opts || {};
       const rows = matrix.length;
       const cols = matrix[0].length;
       const rowLabels = options.rowLabels || Array.from({ length: rows }, (_, i) => "r" + i);
       const colLabels = options.colLabels || Array.from({ length: cols }, (_, i) => "c" + i);
+      const tableId = options.tableId || "auto_" + String(AUTO_TABLE_COUNTER++);
 
       const wrap = document.createElement("div");
       wrap.className = options.dense ? "matrix dense" : "matrix";
+      wrap.dataset.tableId = tableId;
 
       const table = document.createElement("table");
       table.className = "sheet";
@@ -835,7 +1459,10 @@
         for (let c = 0; c < cols; c += 1) {
           const td = document.createElement("td");
           td.className = klass;
-          td.textContent = formatValue(matrix[r][c]);
+          const shown = formatValue(matrix[r][c]);
+          td.textContent = shown;
+          markExactZeroCell(td, shown);
+          registerCellElement(tableId, r, c, td);
           tr.appendChild(td);
         }
         table.appendChild(tr);
@@ -901,7 +1528,9 @@
         tr.appendChild(th);
         const td = document.createElement("td");
         td.className = rows[i][2];
-        td.textContent = rows[i][1];
+        const shown = rows[i][1];
+        td.textContent = shown;
+        markExactZeroCell(td, shown);
         tr.appendChild(td);
         table.appendChild(tr);
       }
@@ -933,7 +1562,9 @@
       for (let i = 0; i < tokens.length; i += 1) {
         const td = document.createElement("td");
         td.className = i < inputCount ? "input" : "output";
-        td.textContent = String(tokens[i]);
+        const shown = String(tokens[i]);
+        td.textContent = shown;
+        markExactZeroCell(td, shown);
         tokRow.appendChild(td);
       }
       table.appendChild(tokRow);
@@ -945,19 +1576,19 @@
       const side = document.getElementById("weightsSide");
       side.innerHTML = "";
 
-      side.appendChild(makeMatrix("embed", WEIGHTS.embed, "param"));
-      side.appendChild(makeVector("input_norm", WEIGHTS.input_norm, "param"));
-      side.appendChild(makeMatrix("q_proj", WEIGHTS.q_proj, "param"));
-      side.appendChild(makeMatrix("k_proj", WEIGHTS.k_proj, "param"));
-      side.appendChild(makeMatrix("v_proj", WEIGHTS.v_proj, "param"));
-      side.appendChild(makeVector("q_norm", WEIGHTS.q_norm, "param"));
-      side.appendChild(makeVector("k_norm", WEIGHTS.k_norm, "param"));
-      side.appendChild(makeMatrix("o_proj", WEIGHTS.o_proj, "param"));
-      side.appendChild(makeVector("post_attn_norm", WEIGHTS.post_attn_norm, "param"));
-      side.appendChild(makeMatrix("gate_proj", WEIGHTS.gate_proj, "param"));
-      side.appendChild(makeMatrix("up_proj", WEIGHTS.up_proj, "param"));
-      side.appendChild(makeMatrix("down_proj", WEIGHTS.down_proj, "param"));
-      side.appendChild(makeVector("final_norm", WEIGHTS.final_norm, "param"));
+      side.appendChild(makeMatrix("embed", WEIGHTS.embed, "param", { tableId: TABLE_IDS.w_embed }));
+      side.appendChild(makeVector("input_norm", WEIGHTS.input_norm, "param", { tableId: TABLE_IDS.w_input_norm }));
+      side.appendChild(makeMatrix("q_proj", WEIGHTS.q_proj, "param", { tableId: TABLE_IDS.w_q_proj }));
+      side.appendChild(makeMatrix("k_proj", WEIGHTS.k_proj, "param", { tableId: TABLE_IDS.w_k_proj }));
+      side.appendChild(makeMatrix("v_proj", WEIGHTS.v_proj, "param", { tableId: TABLE_IDS.w_v_proj }));
+      side.appendChild(makeVector("q_norm", WEIGHTS.q_norm, "param", { tableId: TABLE_IDS.w_q_norm }));
+      side.appendChild(makeVector("k_norm", WEIGHTS.k_norm, "param", { tableId: TABLE_IDS.w_k_norm }));
+      side.appendChild(makeMatrix("o_proj", WEIGHTS.o_proj, "param", { tableId: TABLE_IDS.w_o_proj }));
+      side.appendChild(makeVector("post_attn_norm", WEIGHTS.post_attn_norm, "param", { tableId: TABLE_IDS.w_post_attn_norm }));
+      side.appendChild(makeMatrix("gate_proj", WEIGHTS.gate_proj, "param", { tableId: TABLE_IDS.w_gate_proj }));
+      side.appendChild(makeMatrix("up_proj", WEIGHTS.up_proj, "param", { tableId: TABLE_IDS.w_up_proj }));
+      side.appendChild(makeMatrix("down_proj", WEIGHTS.down_proj, "param", { tableId: TABLE_IDS.w_down_proj }));
+      side.appendChild(makeVector("final_norm", WEIGHTS.final_norm, "param", { tableId: TABLE_IDS.w_final_norm }));
     }
 
     function clearArchitectureSlots() {
@@ -998,6 +1629,7 @@
 
       document.getElementById("slotHiddenTop").appendChild(
         makeMatrix("hidden_states", hiddenTop, "intermediate", {
+          tableId: TABLE_IDS.arch_hidden_top,
           rowLabels: ["d0", "d1", "d2"],
           colLabels: tLabels,
           dense: true
@@ -1005,6 +1637,7 @@
       );
       document.getElementById("slotAttnScore").appendChild(
         makeMatrix("attn_score", attnScoreH0, "intermediate", {
+          tableId: TABLE_IDS.arch_attn_score_h0,
           rowLabels: tLabels,
           colLabels: tLabels,
           dense: true
@@ -1012,6 +1645,7 @@
       );
       document.getElementById("slotAttnWeight").appendChild(
         makeMatrix("attn_weight", attnWeightH0, "intermediate", {
+          tableId: TABLE_IDS.arch_attn_weight_h0,
           rowLabels: tLabels,
           colLabels: tLabels,
           dense: true
@@ -1019,6 +1653,7 @@
       );
       document.getElementById("slotQuery").appendChild(
         makeMatrix("query_states", queryStates, "intermediate", {
+          tableId: TABLE_IDS.arch_query_states,
           rowLabels: Array.from({ length: 8 }, (_, i) => "q" + i),
           colLabels: tLabels,
           dense: true
@@ -1026,6 +1661,7 @@
       );
       document.getElementById("slotKey").appendChild(
         makeMatrix("key_states", keyStates, "intermediate", {
+          tableId: TABLE_IDS.arch_key_states,
           rowLabels: ["k0", "k1"],
           colLabels: tLabels,
           dense: true
@@ -1033,6 +1669,7 @@
       );
       document.getElementById("slotValue").appendChild(
         makeMatrix("value_states", valueStates, "intermediate", {
+          tableId: TABLE_IDS.arch_value_states,
           rowLabels: ["v0", "v1"],
           colLabels: tLabels,
           dense: true
@@ -1040,6 +1677,7 @@
       );
       document.getElementById("slotPosQ").appendChild(
         makeMatrix("position_embeddings", pos, "intermediate", {
+          tableId: TABLE_IDS.arch_pos_q,
           rowLabels: ["cos", "sin"],
           colLabels: tLabels,
           dense: true
@@ -1047,6 +1685,7 @@
       );
       document.getElementById("slotPosK").appendChild(
         makeMatrix("position_embeddings", pos, "intermediate", {
+          tableId: TABLE_IDS.arch_pos_k,
           rowLabels: ["cos", "sin"],
           colLabels: tLabels,
           dense: true
@@ -1054,6 +1693,7 @@
       );
       document.getElementById("slotHiddenBottom").appendChild(
         makeMatrix("hidden_states", hiddenBottom, "intermediate", {
+          tableId: TABLE_IDS.arch_hidden_bottom,
           rowLabels: ["d0", "d1", "d2"],
           colLabels: tLabels,
           dense: true
@@ -1066,23 +1706,23 @@
       holder.innerHTML = "";
 
       const specs = [
-        ["embedded", trace.embedded, "intermediate"],
-        ["normed", trace.normed, "intermediate"],
-        ["Q", trace.Q, "intermediate"],
-        ["K", trace.K, "intermediate"],
-        ["V", trace.V, "intermediate"],
-        ["Q heads (RoPE)", trace.q_heads_rope, "intermediate"],
-        ["attn_weight", trace.attn_weight_last, "intermediate", true],
-        ["attn_out", trace.attn_out, "intermediate"],
-        ["+residual1", trace.residual1, "intermediate"],
-        ["post_normed", trace.post_normed, "intermediate"],
-        ["gate", trace.gate, "intermediate"],
-        ["up", trace.up, "intermediate"],
-        ["SiLU(g)xu", trace.silu_mul_up, "intermediate"],
-        ["mlp_out", trace.mlp_out, "intermediate"],
-        ["+residual2", trace.residual2, "intermediate"],
-        ["final_normed", trace.final_normed, "intermediate"],
-        ["logits x10", trace.logits, "output"]
+        ["embedded", trace.embedded, "intermediate", false, TABLE_IDS.tr_embedded],
+        ["normed", trace.normed, "intermediate", false, TABLE_IDS.tr_normed],
+        ["Q", trace.Q, "intermediate", false, TABLE_IDS.tr_Q],
+        ["K", trace.K, "intermediate", false, TABLE_IDS.tr_K],
+        ["V", trace.V, "intermediate", false, TABLE_IDS.tr_V],
+        ["Q heads (RoPE)", trace.q_heads_rope, "intermediate", false, TABLE_IDS.tr_q_heads_rope],
+        ["attn_weight", trace.attn_weight_last, "intermediate", true, TABLE_IDS.tr_attn_weight],
+        ["attn_out", trace.attn_out, "intermediate", false, TABLE_IDS.tr_attn_out],
+        ["+residual1", trace.residual1, "intermediate", false, TABLE_IDS.tr_residual1],
+        ["post_normed", trace.post_normed, "intermediate", false, TABLE_IDS.tr_post_normed],
+        ["gate", trace.gate, "intermediate", false, TABLE_IDS.tr_gate],
+        ["up", trace.up, "intermediate", false, TABLE_IDS.tr_up],
+        ["SiLU(g)xu", trace.silu_mul_up, "intermediate", false, TABLE_IDS.tr_silu_mul_up],
+        ["mlp_out", trace.mlp_out, "intermediate", false, TABLE_IDS.tr_mlp_out],
+        ["+residual2", trace.residual2, "intermediate", false, TABLE_IDS.tr_residual2],
+        ["final_normed", trace.final_normed, "intermediate", false, TABLE_IDS.tr_final_normed],
+        ["logits x10", trace.logits, "output", false, TABLE_IDS.tr_logits]
       ];
 
       for (let i = 0; i < specs.length; i += 1) {
@@ -1090,12 +1730,13 @@
           const cols = trace.attn_weight_last[0].length;
           holder.appendChild(
             makeMatrix(specs[i][0], specs[i][1], specs[i][2], {
+              tableId: specs[i][4],
               rowLabels: ["h0", "h1", "h2", "h3"],
               colLabels: Array.from({ length: cols }, (_, c) => "t" + c)
             })
           );
         } else {
-          holder.appendChild(makeVector(specs[i][0], specs[i][1], specs[i][2]));
+          holder.appendChild(makeVector(specs[i][0], specs[i][1], specs[i][2], { tableId: specs[i][4] }));
         }
       }
     }
@@ -1117,12 +1758,18 @@
     }
 
     function computeAndRender() {
+      const previousActive = ACTIVE_CELL_ID;
+      const previousMode = ACTIVE_TRACE_MODE;
       let a;
       let b;
       try {
         a = readAddend("aInput");
         b = readAddend("bInput");
       } catch (err) {
+        ACTIVE_CELL_ID = null;
+        ACTIVE_TRACE_MODE = "none";
+        clearCellHighlights();
+        clearProvenanceOverlay();
         renderResult("NaN", "NaN", false);
         return;
       }
@@ -1134,10 +1781,21 @@
       const modelLittle = run.outputTokens.join("");
       const ok = modelLittle === expectedLittle && modelDecoded === expectedDecoded;
 
+      resetProvenanceRegistry();
+      renderWeightsSide();
       renderTokens(run.fullTokens, run.inputTokens.length);
       renderResult(modelDecoded, expectedDecoded, ok);
       renderArchitecture(run.pass.seq);
       renderTraceRow(run.pass.trace);
+      CELL_PARENTS = buildProvenance(run);
+      CELL_CHILDREN = buildChildrenMap(CELL_PARENTS);
+      if (previousActive && previousMode !== "none" && CELL_ELEMENTS.has(previousActive)) {
+        applyTraceMode(previousActive, previousMode);
+      } else {
+        ACTIVE_CELL_ID = null;
+        ACTIVE_TRACE_MODE = "none";
+        clearProvenanceOverlay();
+      }
     }
 
     function bindControls() {
@@ -1159,6 +1817,19 @@
           computeAndRender();
         }
       });
+    }
+
+    function bindProvenanceInteractions() {
+      const canvas = document.querySelector(".canvas");
+      canvas.addEventListener("click", (e) => {
+        const cell = e.target.closest("td[data-cell-id]");
+        if (!cell) {
+          return;
+        }
+        toggleTraceForCell(cell.dataset.cellId);
+      });
+      document.addEventListener("scroll", scheduleProvenanceRedraw, true);
+      window.addEventListener("resize", scheduleProvenanceRedraw);
     }
 
     function runVerificationPairs() {
@@ -1185,6 +1856,7 @@
     function init() {
       renderTopBar();
       renderWeightsSide();
+      bindProvenanceInteractions();
       bindControls();
       computeAndRender();
       window.__verify121 = runVerificationPairs;
