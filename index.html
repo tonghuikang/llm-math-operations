@@ -1,0 +1,1196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>121-Parameter Qwen3 Adder</title>
+  <style>
+    :root {
+      --grid: #cfd6df;
+      --bg: #ffffff;
+      --head: #f3f5f8;
+      --param: #ead7ff;
+      --intermediate: #ffe8c8;
+      --input: #d9f3d3;
+      --output: #d9e8ff;
+      --ink: #1f2933;
+      --cellw: 4ch;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+
+    .canvas {
+      min-width: 3000px;
+      padding: 10px;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: max-content 580px;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .matrix {
+      border: 1px solid var(--grid);
+      background: #fff;
+    }
+
+    .dense table.sheet th,
+    .dense table.sheet td {
+      min-width: 10px;
+      padding: 1px 1px;
+    }
+
+    table.sheet {
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    table.sheet th,
+    table.sheet td {
+      border: 1px solid var(--grid);
+      box-sizing: content-box;
+      width: var(--cellw);
+      min-width: var(--cellw);
+      max-width: var(--cellw);
+      padding: 1px 3px;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      font-weight: 500;
+      font-size: inherit;
+    }
+
+    table.sheet th {
+      text-align: center;
+      background: var(--head);
+      font-weight: 700;
+    }
+
+    .title {
+      text-align: left !important;
+      padding-left: 8px !important;
+      width: auto !important;
+      min-width: 0 !important;
+      max-width: none !important;
+    }
+
+    .param {
+      background: var(--param);
+    }
+
+    .intermediate {
+      background: var(--intermediate);
+    }
+
+    .input {
+      background: var(--input);
+    }
+
+    .output {
+      background: var(--output);
+    }
+
+    .ctrl input,
+    .ctrl button {
+      width: 100%;
+      min-width: 210px;
+      height: 38px;
+      border: 1px solid var(--grid);
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      padding: 5px 8px;
+      outline: none;
+    }
+
+    .ctrl button {
+      cursor: pointer;
+    }
+
+    .token-table th,
+    .token-table td {
+      min-width: var(--cellw) !important;
+      max-width: var(--cellw) !important;
+      text-align: center !important;
+      padding: 2px !important;
+    }
+
+    .ctrl table.sheet th,
+    .ctrl table.sheet td {
+      width: auto;
+      min-width: 150px;
+      max-width: none;
+    }
+
+    #resultBar table.sheet th,
+    #resultBar table.sheet td {
+      width: auto;
+      min-width: 8ch;
+      max-width: none;
+      overflow: visible;
+    }
+
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .architecture-wrap {
+      display: flex;
+      justify-content: flex-start;
+      width: 100%;
+    }
+
+    .architecture-grid {
+      display: grid;
+      grid-template-columns: max-content max-content max-content;
+      grid-auto-rows: min-content;
+      column-gap: 12px;
+      row-gap: 8px;
+      width: max-content;
+    }
+
+    .architecture-grid > div {
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .architecture-grid .matrix {
+      width: fit-content;
+      min-width: 0;
+      flex: 0 0 auto;
+    }
+
+    .slot-hidden-top {
+      grid-column: 2 / span 2;
+      grid-row: 1;
+    }
+
+    .slot-attn-score {
+      grid-column: 1 / span 2;
+      grid-row: 2;
+    }
+
+    .slot-attn-weight {
+      grid-column: 1 / span 2;
+      grid-row: 3;
+    }
+
+    .slot-query {
+      grid-column: 1;
+      grid-row: 4;
+    }
+
+    .slot-key {
+      grid-column: 2;
+      grid-row: 4;
+    }
+
+    .slot-value {
+      grid-column: 3;
+      grid-row: 4;
+    }
+
+    .slot-pos-q {
+      grid-column: 2;
+      grid-row: 5;
+    }
+
+    .slot-pos-k {
+      grid-column: 3;
+      grid-row: 5;
+    }
+
+    .slot-hidden-bottom {
+      grid-column: 2 / span 2;
+      grid-row: 6;
+    }
+
+    .trace-row {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .weights-side {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      position: sticky;
+      top: 10px;
+      align-self: start;
+    }
+
+    .ok {
+      background: var(--output);
+      font-weight: 700 !important;
+    }
+
+    .bad {
+      background: #ffd9d9;
+      font-weight: 700 !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="row">
+      <div id="topBar" class="matrix ctrl"></div>
+      <div id="resultBar" class="matrix"></div>
+    </div>
+
+    <div class="row">
+      <div id="tokenStream" class="matrix"></div>
+    </div>
+
+    <div class="main">
+      <div class="center-panel">
+        <div class="architecture-wrap">
+          <div id="architecture" class="architecture-grid">
+            <div id="slotHiddenTop" class="slot-hidden-top"></div>
+            <div id="slotAttnScore" class="slot-attn-score"></div>
+            <div id="slotAttnWeight" class="slot-attn-weight"></div>
+            <div id="slotQuery" class="slot-query"></div>
+            <div id="slotKey" class="slot-key"></div>
+            <div id="slotValue" class="slot-value"></div>
+            <div id="slotPosQ" class="slot-pos-q"></div>
+            <div id="slotPosK" class="slot-pos-k"></div>
+            <div id="slotHiddenBottom" class="slot-hidden-bottom"></div>
+          </div>
+        </div>
+
+        <div id="traceRow" class="trace-row"></div>
+      </div>
+
+      <div id="weightsSide" class="weights-side"></div>
+    </div>
+  </div>
+
+  <script>
+    const MODEL_DIM = 3;
+    const ATTENTION_HEADS = 4;
+    const KEY_VALUE_HEADS = 1;
+    const HEAD_DIM = 2;
+    const INTERMEDIATE_SIZE = 2;
+    const VOCAB_SIZE = 10;
+    const OUTPUT_DIGITS = 11;
+    const MAX_ADDEND = 9999999999n;
+    const EPS = 1e-6;
+
+    const EMBED_CONST = 1000.0;
+    const DIGIT_SCALE = EMBED_CONST / Math.sqrt(MODEL_DIM);
+    const CONST_NORM = Math.sqrt(MODEL_DIM);
+    const ALPHA = 20.0;
+    const QK_NORM_SCALE = 256.0;
+    const DECODE_LINEAR_EPS = 5e-4;
+    const DECODE_QUAD = DECODE_LINEAR_EPS / 2.0;
+    const CARRY_SLOPE = -0.1;
+
+    function qvec(offset) {
+      return [Math.cos(offset), -Math.sin(offset)];
+    }
+
+    function buildWeights() {
+      const embed = [];
+      for (let d = 0; d < 10; d += 1) {
+        embed.push([
+          EMBED_CONST - DECODE_QUAD * d * d,
+          d,
+          DECODE_LINEAR_EPS * d
+        ]);
+      }
+
+      const qPrevA = qvec(23);
+      const qPrevB = qvec(11);
+      const qCurA = qvec(22);
+      const qCurB = qvec(10);
+
+      const qProj = [
+        [qPrevA[0], 0.0, 0.0],
+        [qPrevA[1], 0.0, 0.0],
+        [qPrevB[0], 0.0, 0.0],
+        [qPrevB[1], 0.0, 0.0],
+        [qCurA[0], 0.0, 0.0],
+        [qCurA[1], 0.0, 0.0],
+        [qCurB[0], 0.0, 0.0],
+        [qCurB[1], 0.0, 0.0]
+      ];
+
+      const oProj = [
+        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [-1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
+      ];
+
+      const gateProj = [
+        [
+          ALPHA * (-188.0) / CONST_NORM,
+          ALPHA * (-2.0) * DIGIT_SCALE,
+          ALPHA * (20.0) * DIGIT_SCALE
+        ],
+        [
+          ALPHA * (-189.0) / CONST_NORM,
+          ALPHA * (-2.0) * DIGIT_SCALE,
+          ALPHA * (20.0) * DIGIT_SCALE
+        ]
+      ];
+
+      const upProj = [
+        [1.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0]
+      ];
+
+      const scale = 1.0 / (ALPHA * CONST_NORM);
+      const downProj = [
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-10.0 * scale, 10.0 * scale]
+      ];
+
+      return {
+        embed,
+        input_norm: [1.0, 1.0, 1.0],
+        q_proj: qProj,
+        k_proj: [
+          [1.0, 0.0, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        v_proj: [
+          [0.0, DIGIT_SCALE, 0.0],
+          [0.0, 0.0, 0.0]
+        ],
+        q_norm: [QK_NORM_SCALE, QK_NORM_SCALE],
+        k_norm: [QK_NORM_SCALE, QK_NORM_SCALE],
+        o_proj: oProj,
+        post_attn_norm: [1.0, 1.0, 1.0],
+        gate_proj: gateProj,
+        up_proj: upProj,
+        down_proj: downProj,
+        final_norm: [
+          1.0 / CONST_NORM,
+          CARRY_SLOPE * DIGIT_SCALE * DECODE_LINEAR_EPS,
+          DIGIT_SCALE
+        ]
+      };
+    }
+
+    const WEIGHTS = buildWeights();
+
+    function dot(a, b) {
+      let s = 0.0;
+      for (let i = 0; i < a.length; i += 1) {
+        s += a[i] * b[i];
+      }
+      return s;
+    }
+
+    function matVec(weight, x) {
+      const out = new Array(weight.length);
+      for (let r = 0; r < weight.length; r += 1) {
+        out[r] = dot(weight[r], x);
+      }
+      return out;
+    }
+
+    function addVec(a, b) {
+      const out = new Array(a.length);
+      for (let i = 0; i < a.length; i += 1) {
+        out[i] = a[i] + b[i];
+      }
+      return out;
+    }
+
+    function mulVec(a, b) {
+      const out = new Array(a.length);
+      for (let i = 0; i < a.length; i += 1) {
+        out[i] = a[i] * b[i];
+      }
+      return out;
+    }
+
+    function transpose(matrix) {
+      const rows = matrix.length;
+      const cols = matrix[0].length;
+      const out = Array.from({ length: cols }, () => new Array(rows).fill(0.0));
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          out[c][r] = matrix[r][c];
+        }
+      }
+      return out;
+    }
+
+    function rmsNorm(x, weights, eps) {
+      let meanSq = 0.0;
+      for (let i = 0; i < x.length; i += 1) {
+        meanSq += x[i] * x[i];
+      }
+      meanSq /= x.length;
+      const inv = 1.0 / Math.sqrt(meanSq + eps);
+      const out = new Array(x.length);
+      for (let i = 0; i < x.length; i += 1) {
+        out[i] = x[i] * inv * weights[i];
+      }
+      return out;
+    }
+
+    function sigmoid(x) {
+      return 1.0 / (1.0 + Math.exp(-x));
+    }
+
+    function silu(x) {
+      return x * sigmoid(x);
+    }
+
+    function ropeRotate(vec2d, position) {
+      const angle = position;
+      const c = Math.cos(angle);
+      const s = Math.sin(angle);
+      return [
+        vec2d[0] * c - vec2d[1] * s,
+        vec2d[0] * s + vec2d[1] * c
+      ];
+    }
+
+    function reshapeHeads(flat, heads, headDim) {
+      const out = [];
+      for (let h = 0; h < heads; h += 1) {
+        const base = h * headDim;
+        out.push(flat.slice(base, base + headDim));
+      }
+      return out;
+    }
+
+    function flattenHeads(heads) {
+      const out = [];
+      for (let h = 0; h < heads.length; h += 1) {
+        out.push(heads[h][0], heads[h][1]);
+      }
+      return out;
+    }
+
+    function softmax(values) {
+      let maxV = -Infinity;
+      for (let i = 0; i < values.length; i += 1) {
+        if (values[i] > maxV) {
+          maxV = values[i];
+        }
+      }
+      let sum = 0.0;
+      const exps = new Array(values.length);
+      for (let i = 0; i < values.length; i += 1) {
+        const e = Math.exp(values[i] - maxV);
+        exps[i] = e;
+        sum += e;
+      }
+      const out = new Array(values.length);
+      for (let i = 0; i < values.length; i += 1) {
+        out[i] = exps[i] / sum;
+      }
+      return out;
+    }
+
+    function argmax(values) {
+      let idx = 0;
+      let best = values[0];
+      for (let i = 1; i < values.length; i += 1) {
+        if (values[i] > best) {
+          best = values[i];
+          idx = i;
+        }
+      }
+      return idx;
+    }
+
+    function formatValue(v) {
+      if (!Number.isFinite(v)) {
+        return String(v);
+      }
+      const value = Object.is(v, -0) ? 0 : v;
+      if (value === 0) {
+        return "0";
+      }
+      const abs = Math.abs(value);
+      const sign = value >= 0 ? "+" : "-";
+      if (abs < 0.1) {
+        const expText = abs.toExponential(0);
+        const m = expText.match(/^(\d)e([+-]\d+)$/);
+        if (m) {
+          const mant = m[1];
+          const exp = Number(m[2]);
+          if (exp < 0 && -exp <= 9) {
+            return sign + mant + "f" + String(-exp);
+          }
+        }
+        return "+0.0";
+      }
+      if (abs >= 1000) {
+        return sign + abs.toExponential(0).replace("e+", "e");
+      }
+      if (abs >= 100) {
+        const rounded = Math.round(abs);
+        if (rounded >= 1000) {
+          return sign + rounded.toExponential(0).replace("e+", "e");
+        }
+        return sign + String(rounded);
+      }
+      if (Number.isInteger(abs)) {
+        return sign + String(abs);
+      }
+      return sign + abs.toFixed(1);
+    }
+
+    function formatScalar(v) {
+      if (typeof v === "number") {
+        return formatValue(v);
+      }
+      if (typeof v === "bigint") {
+        return formatValue(Number(v));
+      }
+      if (typeof v === "string" && /^[-+]?\d+(\.\d+)?$/.test(v)) {
+        return formatValue(Number(v));
+      }
+      return String(v);
+    }
+
+    function formatFullInt(v) {
+      if (typeof v === "number" && Number.isFinite(v) && Number.isInteger(v)) {
+        return String(v);
+      }
+      if (typeof v === "string" && /^-?\d+$/.test(v)) {
+        return v;
+      }
+      return String(v);
+    }
+
+    function encodeAddendsInternal(a, b) {
+      const aStr = String(a).padStart(10, "0");
+      const bStr = String(b).padStart(10, "0");
+      const aDigits = aStr.split("").map((c) => Number(c));
+      const bDigits = bStr.split("").map((c) => Number(c));
+      return [0]
+        .concat(aDigits.reverse())
+        .concat([0, 0])
+        .concat(bDigits.reverse())
+        .concat([0]);
+    }
+
+    function expectedOutputLittleEndian(a, b) {
+      const sum = (BigInt(a) + BigInt(b)).toString();
+      const rev = sum.split("").reverse().join("");
+      return rev.padEnd(OUTPUT_DIGITS, "0");
+    }
+
+    function decodeLittleEndianDigits(digits) {
+      const normal = digits.slice().reverse().join("").replace(/^0+(?=\d)/, "");
+      return normal.length === 0 ? "0" : normal;
+    }
+
+    function stackAttentionHeads(weightsByHead) {
+      const out = [];
+      for (let h = 0; h < weightsByHead.length; h += 1) {
+        for (let t = 0; t < weightsByHead[h].length; t += 1) {
+          out.push(weightsByHead[h][t].slice());
+        }
+      }
+      return out;
+    }
+
+    function forwardPass(tokens) {
+      const tLen = tokens.length;
+      const embedded = new Array(tLen);
+      const normed = new Array(tLen);
+      const q = new Array(tLen);
+      const k = new Array(tLen);
+      const v = new Array(tLen);
+      const qRope = new Array(tLen);
+      const kRope = new Array(tLen);
+      const qRopeHeads = new Array(tLen);
+      const kRopeHead = new Array(tLen);
+
+      for (let t = 0; t < tLen; t += 1) {
+        embedded[t] = WEIGHTS.embed[tokens[t]].slice();
+        normed[t] = rmsNorm(embedded[t], WEIGHTS.input_norm, EPS);
+
+        const qRaw = matVec(WEIGHTS.q_proj, normed[t]);
+        const kRaw = matVec(WEIGHTS.k_proj, normed[t]);
+        const vRaw = matVec(WEIGHTS.v_proj, normed[t]);
+
+        let qHeads = reshapeHeads(qRaw, ATTENTION_HEADS, HEAD_DIM);
+        let kHeads = reshapeHeads(kRaw, KEY_VALUE_HEADS, HEAD_DIM);
+        const vHeads = reshapeHeads(vRaw, KEY_VALUE_HEADS, HEAD_DIM);
+
+        qHeads = qHeads.map((h) => rmsNorm(h, WEIGHTS.q_norm, EPS));
+        kHeads = kHeads.map((h) => rmsNorm(h, WEIGHTS.k_norm, EPS));
+
+        q[t] = flattenHeads(qHeads);
+        k[t] = flattenHeads(kHeads);
+        v[t] = flattenHeads(vHeads);
+
+        const qRot = qHeads.map((h) => ropeRotate(h, t));
+        const kRot = kHeads.map((h) => ropeRotate(h, t));
+        qRope[t] = flattenHeads(qRot);
+        kRope[t] = flattenHeads(kRot);
+        qRopeHeads[t] = qRot.map((h) => h.slice());
+        kRopeHead[t] = kRot[0].slice();
+      }
+
+      const scale = 1.0 / Math.sqrt(HEAD_DIM);
+      const attnScores = Array.from({ length: ATTENTION_HEADS }, () =>
+        Array.from({ length: tLen }, () => new Array(tLen).fill(0.0))
+      );
+      const attnWeights = Array.from({ length: ATTENTION_HEADS }, () =>
+        Array.from({ length: tLen }, () => new Array(tLen).fill(0.0))
+      );
+
+      const attnCtx = new Array(tLen);
+      const attnOut = new Array(tLen);
+      const residual1 = new Array(tLen);
+      const postNormed = new Array(tLen);
+      const gate = new Array(tLen);
+      const up = new Array(tLen);
+      const siluGate = new Array(tLen);
+      const swiglu = new Array(tLen);
+      const mlpOut = new Array(tLen);
+      const residual2 = new Array(tLen);
+      const finalNormed = new Array(tLen);
+      const logits = new Array(tLen);
+
+      for (let t = 0; t < tLen; t += 1) {
+        const ctxHeads = [];
+        for (let h = 0; h < ATTENTION_HEADS; h += 1) {
+          const scoreRow = [];
+          for (let j = 0; j <= t; j += 1) {
+            const score = dot(qRopeHeads[t][h], kRopeHead[j]) * scale;
+            scoreRow.push(score);
+            attnScores[h][t][j] = score;
+          }
+          const probs = softmax(scoreRow);
+          const ctx = [0.0, 0.0];
+          for (let j = 0; j <= t; j += 1) {
+            attnWeights[h][t][j] = probs[j];
+            ctx[0] += probs[j] * v[j][0];
+            ctx[1] += probs[j] * v[j][1];
+          }
+          ctxHeads.push(ctx);
+        }
+
+        const flatCtx = flattenHeads(ctxHeads);
+        attnCtx[t] = flatCtx;
+        attnOut[t] = matVec(WEIGHTS.o_proj, flatCtx);
+
+        residual1[t] = addVec(embedded[t], attnOut[t]);
+        postNormed[t] = rmsNorm(residual1[t], WEIGHTS.post_attn_norm, EPS);
+        gate[t] = matVec(WEIGHTS.gate_proj, postNormed[t]);
+        up[t] = matVec(WEIGHTS.up_proj, postNormed[t]);
+        siluGate[t] = gate[t].map((x) => silu(x));
+        swiglu[t] = mulVec(siluGate[t], up[t]);
+        mlpOut[t] = matVec(WEIGHTS.down_proj, swiglu[t]);
+        residual2[t] = addVec(residual1[t], mlpOut[t]);
+        finalNormed[t] = rmsNorm(residual2[t], WEIGHTS.final_norm, EPS);
+
+        const rowLogits = new Array(VOCAB_SIZE);
+        for (let d = 0; d < VOCAB_SIZE; d += 1) {
+          rowLogits[d] = dot(finalNormed[t], WEIGHTS.embed[d]);
+        }
+        logits[t] = rowLogits;
+      }
+
+      const last = tLen - 1;
+      const trace = {
+        embedded: embedded[last].slice(),
+        normed: normed[last].slice(),
+        Q: q[last].slice(),
+        K: k[last].slice(),
+        V: v[last].slice(),
+        q_heads_rope: qRope[last].slice(),
+        attn_weight_last: attnWeights.map((h) => h[last].slice()),
+        attn_out: attnOut[last].slice(),
+        residual1: residual1[last].slice(),
+        post_normed: postNormed[last].slice(),
+        gate: gate[last].slice(),
+        up: up[last].slice(),
+        silu_mul_up: swiglu[last].slice(),
+        mlp_out: mlpOut[last].slice(),
+        residual2: residual2[last].slice(),
+        final_normed: finalNormed[last].slice(),
+        logits: logits[last].slice()
+      };
+
+      return {
+        logits,
+        seq: {
+          embedded,
+          normed,
+          q,
+          k,
+          v,
+          q_rope: qRope,
+          k_rope: kRope,
+          attn_scores: attnScores,
+          attn_weights: attnWeights,
+          attn_ctx: attnCtx,
+          attn_out: attnOut,
+          residual1,
+          post_normed: postNormed,
+          gate,
+          up,
+          silu_gate: siluGate,
+          swiglu,
+          mlp_out: mlpOut,
+          residual2,
+          final_normed: finalNormed
+        },
+        trace
+      };
+    }
+
+    function runModel(a, b) {
+      const inputTokens = encodeAddendsInternal(a, b);
+      const seq = inputTokens.slice();
+      for (let i = 0; i < OUTPUT_DIGITS; i += 1) {
+        const pass = forwardPass(seq);
+        const next = argmax(pass.logits[pass.logits.length - 1]);
+        seq.push(next);
+      }
+      const outputTokens = seq.slice(inputTokens.length);
+      const finalPass = forwardPass(seq);
+      return {
+        inputTokens,
+        outputTokens,
+        fullTokens: seq,
+        pass: finalPass
+      };
+    }
+
+    function makeMatrix(name, matrix, klass, opts) {
+      const options = opts || {};
+      const rows = matrix.length;
+      const cols = matrix[0].length;
+      const rowLabels = options.rowLabels || Array.from({ length: rows }, (_, i) => "r" + i);
+      const colLabels = options.colLabels || Array.from({ length: cols }, (_, i) => "c" + i);
+
+      const wrap = document.createElement("div");
+      wrap.className = options.dense ? "matrix dense" : "matrix";
+
+      const table = document.createElement("table");
+      table.className = "sheet";
+
+      const titleRow = document.createElement("tr");
+      const titleCell = document.createElement("th");
+      titleCell.colSpan = cols + 1;
+      titleCell.className = "title";
+      titleCell.textContent = name + " " + rows + "x" + cols;
+      titleRow.appendChild(titleCell);
+      table.appendChild(titleRow);
+
+      const headerRow = document.createElement("tr");
+      const blank = document.createElement("th");
+      blank.textContent = "";
+      headerRow.appendChild(blank);
+      for (let c = 0; c < cols; c += 1) {
+        const th = document.createElement("th");
+        th.textContent = colLabels[c];
+        headerRow.appendChild(th);
+      }
+      table.appendChild(headerRow);
+
+      for (let r = 0; r < rows; r += 1) {
+        const tr = document.createElement("tr");
+        const rh = document.createElement("th");
+        rh.textContent = rowLabels[r];
+        tr.appendChild(rh);
+        for (let c = 0; c < cols; c += 1) {
+          const td = document.createElement("td");
+          td.className = klass;
+          td.textContent = formatValue(matrix[r][c]);
+          tr.appendChild(td);
+        }
+        table.appendChild(tr);
+      }
+
+      wrap.appendChild(table);
+      return wrap;
+    }
+
+    function makeVector(name, values, klass, opts) {
+      return makeMatrix(name, [values], klass, opts);
+    }
+
+    function renderTopBar() {
+      const holder = document.getElementById("topBar");
+      holder.innerHTML = "";
+
+      const table = document.createElement("table");
+      table.className = "sheet";
+
+      const head = document.createElement("tr");
+      ["a", "b", "compute", "random"].forEach((label) => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        head.appendChild(th);
+      });
+      table.appendChild(head);
+
+      const row = document.createElement("tr");
+      const aTd = document.createElement("td");
+      aTd.innerHTML = '<input id="aInput" type="number" min="0" max="9999999999" step="1" value="5">';
+      row.appendChild(aTd);
+      const bTd = document.createElement("td");
+      bTd.innerHTML = '<input id="bInput" type="number" min="0" max="9999999999" step="1" value="7">';
+      row.appendChild(bTd);
+      const cTd = document.createElement("td");
+      cTd.innerHTML = '<button id="computeBtn">compute</button>';
+      row.appendChild(cTd);
+      const rTd = document.createElement("td");
+      rTd.innerHTML = '<button id="randomBtn">random</button>';
+      row.appendChild(rTd);
+      table.appendChild(row);
+
+      holder.appendChild(table);
+    }
+
+    function renderResult(modelValue, expectedValue, ok) {
+      const holder = document.getElementById("resultBar");
+      holder.innerHTML = "";
+      const table = document.createElement("table");
+      table.className = "sheet";
+
+      const rows = [
+        ["model", formatFullInt(modelValue), "output"],
+        ["expected", formatFullInt(expectedValue), "output"],
+        ["check", ok ? "1" : "0", ok ? "ok" : "bad"]
+      ];
+
+      for (let i = 0; i < rows.length; i += 1) {
+        const tr = document.createElement("tr");
+        const th = document.createElement("th");
+        th.textContent = rows[i][0];
+        tr.appendChild(th);
+        const td = document.createElement("td");
+        td.className = rows[i][2];
+        td.textContent = rows[i][1];
+        tr.appendChild(td);
+        table.appendChild(tr);
+      }
+
+      holder.appendChild(table);
+    }
+
+    function renderTokens(tokens, inputCount) {
+      const holder = document.getElementById("tokenStream");
+      holder.innerHTML = "";
+      const table = document.createElement("table");
+      table.className = "sheet token-table";
+
+      const idxRow = document.createElement("tr");
+      const idxLabel = document.createElement("th");
+      idxLabel.textContent = "idx";
+      idxRow.appendChild(idxLabel);
+      for (let i = 0; i < tokens.length; i += 1) {
+        const th = document.createElement("th");
+        th.textContent = "t" + i;
+        idxRow.appendChild(th);
+      }
+      table.appendChild(idxRow);
+
+      const tokRow = document.createElement("tr");
+      const tokLabel = document.createElement("th");
+      tokLabel.textContent = "tok";
+      tokRow.appendChild(tokLabel);
+      for (let i = 0; i < tokens.length; i += 1) {
+        const td = document.createElement("td");
+        td.className = i < inputCount ? "input" : "output";
+        td.textContent = String(tokens[i]);
+        tokRow.appendChild(td);
+      }
+      table.appendChild(tokRow);
+
+      holder.appendChild(table);
+    }
+
+    function renderWeightsSide() {
+      const side = document.getElementById("weightsSide");
+      side.innerHTML = "";
+
+      side.appendChild(makeMatrix("embed", WEIGHTS.embed, "param"));
+      side.appendChild(makeVector("input_norm", WEIGHTS.input_norm, "param"));
+      side.appendChild(makeMatrix("q_proj", WEIGHTS.q_proj, "param"));
+      side.appendChild(makeMatrix("k_proj", WEIGHTS.k_proj, "param"));
+      side.appendChild(makeMatrix("v_proj", WEIGHTS.v_proj, "param"));
+      side.appendChild(makeVector("q_norm", WEIGHTS.q_norm, "param"));
+      side.appendChild(makeVector("k_norm", WEIGHTS.k_norm, "param"));
+      side.appendChild(makeMatrix("o_proj", WEIGHTS.o_proj, "param"));
+      side.appendChild(makeVector("post_attn_norm", WEIGHTS.post_attn_norm, "param"));
+      side.appendChild(makeMatrix("gate_proj", WEIGHTS.gate_proj, "param"));
+      side.appendChild(makeMatrix("up_proj", WEIGHTS.up_proj, "param"));
+      side.appendChild(makeMatrix("down_proj", WEIGHTS.down_proj, "param"));
+      side.appendChild(makeVector("final_norm", WEIGHTS.final_norm, "param"));
+    }
+
+    function clearArchitectureSlots() {
+      const slotIds = [
+        "slotHiddenTop",
+        "slotAttnScore",
+        "slotAttnWeight",
+        "slotQuery",
+        "slotKey",
+        "slotValue",
+        "slotPosQ",
+        "slotPosK",
+        "slotHiddenBottom"
+      ];
+      for (let i = 0; i < slotIds.length; i += 1) {
+        document.getElementById(slotIds[i]).innerHTML = "";
+      }
+    }
+
+    function renderArchitecture(seq) {
+      clearArchitectureSlots();
+
+      const tLen = seq.normed.length;
+      const tLabels = Array.from({ length: tLen }, (_, i) => "t" + i);
+
+      const hiddenTop = transpose(seq.normed);
+      const queryStates = transpose(seq.q);
+      const keyStates = transpose(seq.k);
+      const valueStates = transpose(seq.v);
+      const attnScoreH0 = seq.attn_scores[0];
+      const attnWeightH0 = seq.attn_weights[0];
+      const hiddenBottom = transpose(seq.attn_out);
+
+      const pos = [
+        Array.from({ length: tLen }, (_, i) => Math.cos(i)),
+        Array.from({ length: tLen }, (_, i) => Math.sin(i))
+      ];
+
+      document.getElementById("slotHiddenTop").appendChild(
+        makeMatrix("hidden_states", hiddenTop, "intermediate", {
+          rowLabels: ["d0", "d1", "d2"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotAttnScore").appendChild(
+        makeMatrix("attn_score", attnScoreH0, "intermediate", {
+          rowLabels: tLabels,
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotAttnWeight").appendChild(
+        makeMatrix("attn_weight", attnWeightH0, "intermediate", {
+          rowLabels: tLabels,
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotQuery").appendChild(
+        makeMatrix("query_states", queryStates, "intermediate", {
+          rowLabels: Array.from({ length: 8 }, (_, i) => "q" + i),
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotKey").appendChild(
+        makeMatrix("key_states", keyStates, "intermediate", {
+          rowLabels: ["k0", "k1"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotValue").appendChild(
+        makeMatrix("value_states", valueStates, "intermediate", {
+          rowLabels: ["v0", "v1"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotPosQ").appendChild(
+        makeMatrix("position_embeddings", pos, "intermediate", {
+          rowLabels: ["cos", "sin"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotPosK").appendChild(
+        makeMatrix("position_embeddings", pos, "intermediate", {
+          rowLabels: ["cos", "sin"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+      document.getElementById("slotHiddenBottom").appendChild(
+        makeMatrix("hidden_states", hiddenBottom, "intermediate", {
+          rowLabels: ["d0", "d1", "d2"],
+          colLabels: tLabels,
+          dense: true
+        })
+      );
+    }
+
+    function renderTraceRow(trace) {
+      const holder = document.getElementById("traceRow");
+      holder.innerHTML = "";
+
+      const specs = [
+        ["embedded", trace.embedded, "intermediate"],
+        ["normed", trace.normed, "intermediate"],
+        ["Q", trace.Q, "intermediate"],
+        ["K", trace.K, "intermediate"],
+        ["V", trace.V, "intermediate"],
+        ["Q heads (RoPE)", trace.q_heads_rope, "intermediate"],
+        ["attn_weight", trace.attn_weight_last, "intermediate", true],
+        ["attn_out", trace.attn_out, "intermediate"],
+        ["+residual1", trace.residual1, "intermediate"],
+        ["post_normed", trace.post_normed, "intermediate"],
+        ["gate", trace.gate, "intermediate"],
+        ["up", trace.up, "intermediate"],
+        ["SiLU(g)xu", trace.silu_mul_up, "intermediate"],
+        ["mlp_out", trace.mlp_out, "intermediate"],
+        ["+residual2", trace.residual2, "intermediate"],
+        ["final_normed", trace.final_normed, "intermediate"],
+        ["logits x10", trace.logits, "output"]
+      ];
+
+      for (let i = 0; i < specs.length; i += 1) {
+        if (specs[i][3]) {
+          const cols = trace.attn_weight_last[0].length;
+          holder.appendChild(
+            makeMatrix(specs[i][0], specs[i][1], specs[i][2], {
+              rowLabels: ["h0", "h1", "h2", "h3"],
+              colLabels: Array.from({ length: cols }, (_, c) => "t" + c)
+            })
+          );
+        } else {
+          holder.appendChild(makeVector(specs[i][0], specs[i][1], specs[i][2]));
+        }
+      }
+    }
+
+    function randomAddend() {
+      return Math.floor(Math.random() * 10000000000);
+    }
+
+    function readAddend(id) {
+      const raw = document.getElementById(id).value.trim();
+      if (!/^\d+$/.test(raw)) {
+        throw new Error("invalid");
+      }
+      const n = BigInt(raw);
+      if (n < 0n || n > MAX_ADDEND) {
+        throw new Error("invalid");
+      }
+      return Number(n);
+    }
+
+    function computeAndRender() {
+      let a;
+      let b;
+      try {
+        a = readAddend("aInput");
+        b = readAddend("bInput");
+      } catch (err) {
+        renderResult("NaN", "NaN", false);
+        return;
+      }
+
+      const run = runModel(a, b);
+      const modelDecoded = decodeLittleEndianDigits(run.outputTokens);
+      const expectedDecoded = (BigInt(a) + BigInt(b)).toString();
+      const expectedLittle = expectedOutputLittleEndian(a, b);
+      const modelLittle = run.outputTokens.join("");
+      const ok = modelLittle === expectedLittle && modelDecoded === expectedDecoded;
+
+      renderTokens(run.fullTokens, run.inputTokens.length);
+      renderResult(modelDecoded, expectedDecoded, ok);
+      renderArchitecture(run.pass.seq);
+      renderTraceRow(run.pass.trace);
+    }
+
+    function bindControls() {
+      const computeBtn = document.getElementById("computeBtn");
+      const randomBtn = document.getElementById("randomBtn");
+      computeBtn.addEventListener("click", computeAndRender);
+      randomBtn.addEventListener("click", () => {
+        document.getElementById("aInput").value = String(randomAddend());
+        document.getElementById("bInput").value = String(randomAddend());
+        computeAndRender();
+      });
+      document.getElementById("aInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          computeAndRender();
+        }
+      });
+      document.getElementById("bInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          computeAndRender();
+        }
+      });
+    }
+
+    function runVerificationPairs() {
+      const pairs = [
+        [5, 7, "12"],
+        [9999999999, 1, "10000000000"],
+        [1234567890, 9876543210, "11111111100"],
+        [0, 0, "0"],
+        [9999999999, 9999999999, "19999999998"]
+      ];
+      for (let i = 0; i < pairs.length; i += 1) {
+        const a = pairs[i][0];
+        const b = pairs[i][1];
+        const expected = pairs[i][2];
+        const run = runModel(a, b);
+        const decoded = decodeLittleEndianDigits(run.outputTokens);
+        if (decoded !== expected) {
+          throw new Error("verification failed: " + a + " + " + b + " -> " + decoded);
+        }
+      }
+      return true;
+    }
+
+    function init() {
+      renderTopBar();
+      renderWeightsSide();
+      bindControls();
+      computeAndRender();
+      window.__verify121 = runVerificationPairs;
+    }
+
+    init();
+  </script>
+</body>
+</html>
