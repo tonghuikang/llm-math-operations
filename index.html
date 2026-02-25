@@ -617,6 +617,12 @@
       return `${sign}${Math.abs(Number(txt))}`;
     }
 
+    function formatCellHover(v) {
+      if (!Number.isFinite(v)) return String(v);
+      if (Object.is(v, -0)) v = 0;
+      return v.toFixed(5);
+    }
+
     function makeArrayRefs(prefix, len) {
       return Array.from({ length: len }, (_, i) => `${prefix}.c${i}`);
     }
@@ -1145,12 +1151,15 @@
       const td = document.createElement('td');
       const isZero = value === 0 || Object.is(value, -0);
       const text = isZero ? '0' : formatCell(value);
+      const hover = formatCellHover(value);
       td.className = `cell ${cat || 'intermediate'}`;
       if (isZero) td.classList.add('zero');
       td.dataset.cellId = id;
+      td.title = hover;
       const span = document.createElement('span');
       span.className = 'value';
       span.textContent = value === undefined || value === null ? '' : text;
+      span.title = hover;
       td.appendChild(span);
       td.addEventListener('click', () => onCellClick(id));
       return td;
@@ -1160,6 +1169,8 @@
       appState.visibleNodeIds = appState.visibleNodeIds || new Set();
       const box = document.createElement('div');
       box.className = 'matrix-box';
+      box.dataset.layoutKind = 'matrix';
+      box.dataset.cols = String(colLabels.length);
       const t = document.createElement('div');
       t.className = 'title';
       t.textContent = title;
@@ -1206,6 +1217,8 @@
     function renderHeadMatricesSideBySide(title, refsByHead, rowLabels, colLabels, fallbackCat) {
       const box = document.createElement('div');
       box.className = 'matrix-box';
+      box.dataset.layoutKind = 'head-stack';
+      box.dataset.cols = String(colLabels.length);
       const t = document.createElement('div');
       t.className = 'title';
       t.textContent = title;
@@ -1629,6 +1642,7 @@
       appState.visibleNodeIds = new Set();
       renderTokens(result.tokens);
       renderFlow(result, appState.generationSteps);
+      alignFlowLongMatricesToFirstHead();
       redrawSelection();
       redrawLinks();
     }
@@ -1661,6 +1675,35 @@
         const currentTop = matrixGridTop(wb);
         const targetTop = matrixGridTop(fb);
         wb.style.marginTop = `${Math.round(targetTop - currentTop)}px`;
+      }
+    }
+
+    function matrixGridRight(el) {
+      const table = el.querySelector('.matrix-scroll table');
+      if (table) return table.getBoundingClientRect().right;
+      const scroller = el.querySelector('.matrix-scroll');
+      if (scroller) return scroller.getBoundingClientRect().right;
+      return el.getBoundingClientRect().right;
+    }
+
+    function alignFlowLongMatricesToFirstHead() {
+      const boxes = Array.from(flowColumn.querySelectorAll('.matrix-box'));
+      for (const box of boxes) {
+        if (box.dataset.layoutKind === 'matrix' && (box.dataset.cols === '11' || box.dataset.cols === '35')) {
+          box.style.marginLeft = '0px';
+        }
+      }
+
+      const firstHeadPanel = flowColumn.querySelector('.head-stack .head-panel');
+      if (!firstHeadPanel) return;
+      const headAnchor = firstHeadPanel.querySelector('table') || firstHeadPanel;
+      const anchorRight = headAnchor.getBoundingClientRect().right;
+
+      for (const box of boxes) {
+        if (box.dataset.layoutKind !== 'matrix') continue;
+        if (box.dataset.cols !== '11' && box.dataset.cols !== '35') continue;
+        const delta = Math.round(anchorRight - matrixGridRight(box));
+        box.style.marginLeft = `${delta}px`;
       }
     }
 
@@ -1947,8 +1990,9 @@
 
     layout.addEventListener('scroll', () => redrawLinks());
     window.addEventListener('resize', () => {
-      redrawLinks();
+      alignFlowLongMatricesToFirstHead();
       alignAllWeightsToFlow();
+      redrawLinks();
     });
   </script>
 </body>
