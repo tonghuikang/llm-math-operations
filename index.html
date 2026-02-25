@@ -354,11 +354,11 @@
       <div class="controls">
         <div class="field">
           <span>a</span>
-          <input id="aInput" type="number" min="0" max="9999999999" value="1234567890" />
+          <input id="aInput" type="number" min="0" max="9999999999" value="100000900" />
         </div>
         <div class="field">
           <span>b</span>
-          <input id="bInput" type="number" min="0" max="9999999999" value="9753086431" />
+          <input id="bInput" type="number" min="0" max="9999999999" value="200000800" />
         </div>
         <button id="computeBtn">Compute</button>
         <button id="randomBtn">Random</button>
@@ -907,11 +907,10 @@
       );
 
       for (let q = scoreStart; q < n; q++) {
-        const qScoreParents = [];
-        for (let h = 0; h < ATTN_HEADS; h++) {
+        const qScoreParentsByHead = Array.from({ length: ATTN_HEADS }, (_, h) => {
           const qBase = h * 2;
-          qScoreParents.push(`act.q_heads.t${q}.c${qBase}`, `act.q_heads.t${q}.c${qBase + 1}`);
-        }
+          return [`act.q_heads.t${q}.c${qBase}`, `act.q_heads.t${q}.c${qBase + 1}`];
+        });
 
         for (let k = 0; k < n; k++) {
           for (let h = 0; h < ATTN_HEADS; h++) {
@@ -922,7 +921,7 @@
             attnScoreByHead[h][q][k] = raw;
             const sid = `act.attn_score.h${h}.q${q}.t${k}`;
             refs.attnScoreByHead[h][q][k] = sid;
-            put(sid, raw, 'intermediate', [qScoreParents, `act.k_heads.t${k}.c0`, `act.k_heads.t${k}.c1`]);
+            put(sid, raw, 'intermediate', [...qScoreParentsByHead[h], `act.k_heads.t${k}.c0`, `act.k_heads.t${k}.c1`]);
           }
         }
 
@@ -1326,11 +1325,10 @@
       const genLogitsCols = Array.from({ length: VOCAB }, (_, c) => `c${c}`);
       const outLabels = Array.from({ length: genSteps.length }, (_, i) => `o${i}`);
       const tokenLabels = Array.from({ length: n }, (_, i) => `t${i}`);
-      const qHeadRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 8 }, (_, c) => `act.q_heads.t${tt}.c${c}`));
-      const kHeadRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.k_heads.t${tt}.c${c}`));
-      const vNormByHeadRefs = Array.from({ length: ATTN_HEADS }, () =>
-        Array.from({ length: 2 }, (_, c) => Array.from({ length: n }, (_, t) => `act.v_norm.t${t}.c${c}`)),
+      const qHeadByHeadRefs = Array.from({ length: ATTN_HEADS }, (_, h) =>
+        Array.from({ length: 2 }, (_, c) => Array.from({ length: n }, (_, t) => `act.q_heads.t${t}.c${h * 2 + c}`)),
       );
+      const kHeadRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.k_heads.t${tt}.c${c}`));
       const transposeRefs = (arr) => {
         if (!arr.length || !arr[0].length) return [];
         const rows = arr.length;
@@ -1423,27 +1421,21 @@
           cols: tokenLabels,
         },
         {
+          title: `Q heads (RoPE) ${ATTN_HEADS}x2x${n}`,
+          type: 'head-stack',
+          refsByHead: qHeadByHeadRefs,
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
           title: `K heads (RoPE) 2x${n}`,
           refs: transposeRefs(kHeadRefs),
           rows: dim2Labels,
           cols: tokenLabels,
         },
         {
-          title: `Q heads (RoPE) 8x${n}`,
-          refs: transposeRefs(qHeadRefs),
-          rows: dim8Labels,
-          cols: tokenLabels,
-        },
-        {
           title: `V normed 2x${n}`,
-          type: 'head-stack',
-          refsByHead: vNormByHeadRefs,
-          rows: dim2Labels,
-          cols: tokenLabels,
-        },
-        {
-          title: `K normed 2x${n}`,
-          refs: transposeRefs(kNormRefs),
+          refs: transposeRefs(vNormRefs),
           rows: dim2Labels,
           cols: tokenLabels,
         },
@@ -1454,14 +1446,14 @@
           cols: tokenLabels,
         },
         {
-          title: `V 2x${n}`,
-          refs: transposeRefs(vRawRefs),
+          title: `K normed 2x${n}`,
+          refs: transposeRefs(kNormRefs),
           rows: dim2Labels,
           cols: tokenLabels,
         },
         {
-          title: `K 2x${n}`,
-          refs: transposeRefs(kRawRefs),
+          title: `V 2x${n}`,
+          refs: transposeRefs(vRawRefs),
           rows: dim2Labels,
           cols: tokenLabels,
         },
@@ -1469,6 +1461,12 @@
           title: `Q 8x${n}`,
           refs: transposeRefs(qRawRefs),
           rows: dim8Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `K 2x${n}`,
+          refs: transposeRefs(kRawRefs),
+          rows: dim2Labels,
           cols: tokenLabels,
         },
         {
@@ -1613,19 +1611,19 @@
       redrawLinks();
     }
 
+    function clearSelection() {
+      appState.selection.id = null;
+      appState.selection.mode = 'none';
+      redrawSelection();
+      redrawLinks();
+    }
+
     function onCellClick(id) {
       if (appState.selection.id !== id) {
         appState.selection.id = id;
         appState.selection.mode = 'sink';
       } else {
-        if (appState.selection.mode === 'sink') {
-          appState.selection.mode = 'source';
-        } else if (appState.selection.mode === 'source') {
-          appState.selection.mode = 'none';
-          appState.selection.id = null;
-        } else {
-          appState.selection.mode = 'sink';
-        }
+        appState.selection.mode = appState.selection.mode === 'sink' ? 'source' : 'sink';
       }
       redrawSelection();
       redrawLinks();
@@ -1875,17 +1873,22 @@
     forwardAndRender();
 
     document.getElementById('computeBtn').addEventListener('click', () => {
-      appState.selection.id = null;
-      appState.selection.mode = 'none';
+      clearSelection();
       forwardAndRender();
     });
 
     document.getElementById('randomBtn').addEventListener('click', () => {
       aInput.value = Math.floor(Math.random() * (MAX_VAL + 1));
       bInput.value = Math.floor(Math.random() * (MAX_VAL + 1));
-      appState.selection.id = null;
-      appState.selection.mode = 'none';
+      clearSelection();
       forwardAndRender();
+    });
+
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-cell-id]')) return;
+      clearSelection();
     });
 
     layout.addEventListener('scroll', () => redrawLinks());
