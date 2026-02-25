@@ -1293,8 +1293,9 @@
       for (let h = 0; h < ATTN_HEADS; h++) {
         for (let q = 0; q < n; q++) {
           for (let k = 0; k < n; k++) {
-            attnScoreByHeadRefs[h][q][k] = `act.attn_score.h${h}.q${q}.t${k}`;
-            attnWeightByHeadRefs[h][q][k] = `act.attn_weight.h${h}.q${q}.t${k}`;
+            // Transposed display: row axis = key token k, column axis = query token q.
+            attnScoreByHeadRefs[h][k][q] = `act.attn_score.h${h}.q${q}.t${k}`;
+            attnWeightByHeadRefs[h][k][q] = `act.attn_weight.h${h}.q${q}.t${k}`;
           }
         }
       }
