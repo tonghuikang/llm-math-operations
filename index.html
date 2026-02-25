@@ -171,7 +171,7 @@
 
     .weights {
       position: sticky;
-      top: 8px;
+      top: 0;
       display: grid;
       gap: 8px;
       z-index: 1;
@@ -485,19 +485,35 @@
     const sheet = document.getElementById('sheet');
 
     const WEIGHT_MATRIX_SPECS = [
-      ['embed', 'embed 10x3', 10, 3],
-      ['input_norm', 'input_norm 1x3', 1, 3],
-      ['q_proj', 'q_proj 8x3', 8, 3],
-      ['k_proj', 'k_proj 2x3', 2, 3],
-      ['v_proj', 'v_proj 2x3', 2, 3],
-      ['q_norm', 'q_norm 1x2', 1, 2],
-      ['k_norm', 'k_norm 1x2', 1, 2],
-      ['o_proj', 'o_proj 3x8', 3, 8],
-      ['post_attn_norm', 'post_attn_norm 1x3', 1, 3],
+      ['final_norm', 'final_norm 3x1', 1, 3, true],
+      ['down_proj', 'down_proj 3x2', 3, 2],
       ['gate_proj', 'gate_proj 2x3', 2, 3],
       ['up_proj', 'up_proj 2x3', 2, 3],
-      ['down_proj', 'down_proj 3x2', 3, 2],
-      ['final_norm', 'final_norm 1x3', 1, 3],
+      ['post_attn_norm', 'post_attn_norm 3x1', 1, 3, true],
+      ['o_proj', 'o_proj 3x8', 3, 8],
+      ['q_norm', 'q_norm 2x1', 1, 2, true],
+      ['k_norm', 'k_norm 2x1', 1, 2, true],
+      ['v_proj', 'v_proj 2x3', 2, 3],
+      ['q_proj', 'q_proj 8x3', 8, 3],
+      ['k_proj', 'k_proj 2x3', 2, 3],
+      ['input_norm', 'input_norm 3x1', 1, 3, true],
+      ['embed', 'embed 3x10', 10, 3, true],
+    ];
+
+    const WEIGHT_FLOW_ALIGNMENT = [
+      ['final_norm 3x1', 'normed_out 3x'],
+      ['down_proj 3x2', 'mlp_out 3x'],
+      ['gate_proj 2x3', 'gate 2x'],
+      ['up_proj 2x3', 'up 2x'],
+      ['post_attn_norm 3x1', 'post_normed 3x'],
+      ['o_proj 3x8', 'attn_out 3x'],
+      ['q_norm 2x1', 'Q normed 8x'],
+      ['k_norm 2x1', 'K normed 2x'],
+      ['v_proj 2x3', 'V 2x'],
+      ['q_proj 8x3', 'Q 8x'],
+      ['k_proj 2x3', 'K 2x'],
+      ['input_norm 3x1', 'normed 3x'],
+      ['embed 3x10', 'embedded 3x'],
     ];
 
     class Graph {
@@ -1261,10 +1277,16 @@
       appState.visibleWeightNodeIds = appState.visibleWeightNodeIds || new Set();
       appState.visibleWeightNodeIds.clear();
 
-      const matrices = WEIGHT_MATRIX_SPECS.map(([prefix, title, rows, cols]) => [
-        title,
-        makeMatrixRefs(`param.${prefix}`, rows, cols),
-      ]);
+      const transpose2D = (arr) => {
+        if (!arr.length || !arr[0].length) return [];
+        return Array.from({ length: arr[0].length }, (_, c) => Array.from({ length: arr.length }, (_, r) => arr[r][c]));
+      };
+
+      const matrices = WEIGHT_MATRIX_SPECS.map(([prefix, title, rows, cols, transpose = false]) => {
+        let refs = makeMatrixRefs(`param.${prefix}`, rows, cols);
+        if (transpose) refs = transpose2D(refs);
+        return [title, refs];
+      });
 
       for (const [title, refs] of matrices) {
         const rows = Array.from({ length: refs.length }, (_, r) => `r${r}`);
@@ -1611,6 +1633,37 @@
       redrawLinks();
     }
 
+    function findMatrixBoxByTitle(root, prefix) {
+      const boxes = root.querySelectorAll('.matrix-box');
+      for (const box of boxes) {
+        const title = (box.querySelector('.title')?.textContent || '').trim();
+        if (title.startsWith(prefix)) return box;
+      }
+      return null;
+    }
+
+    function matrixGridTop(el) {
+      const table = el.querySelector('.matrix-scroll table');
+      if (table) return table.getBoundingClientRect().top;
+      const scroller = el.querySelector('.matrix-scroll');
+      if (scroller) return scroller.getBoundingClientRect().top;
+      return el.getBoundingClientRect().top;
+    }
+
+    function alignAllWeightsToFlow() {
+      const weightBoxes = Array.from(weightsColumn.querySelectorAll('.matrix-box'));
+      for (const wb of weightBoxes) wb.style.marginTop = '0px';
+
+      for (const [weightPrefix, flowPrefix] of WEIGHT_FLOW_ALIGNMENT) {
+        const wb = findMatrixBoxByTitle(weightsColumn, weightPrefix);
+        const fb = findMatrixBoxByTitle(flowColumn, flowPrefix);
+        if (!wb || !fb) continue;
+        const currentTop = matrixGridTop(wb);
+        const targetTop = matrixGridTop(fb);
+        wb.style.marginTop = `${Math.round(targetTop - currentTop)}px`;
+      }
+    }
+
     function clearSelection() {
       appState.selection.id = null;
       appState.selection.mode = 'none';
@@ -1830,6 +1883,7 @@
 
       renderWeights();
       renderAll(result);
+      alignAllWeightsToFlow();
 
       const modelDigits = decodeDigitsFromTokens(tokens);
       const expected = expectedOutputStr(a, b).toString();
@@ -1892,7 +1946,10 @@
     });
 
     layout.addEventListener('scroll', () => redrawLinks());
-    window.addEventListener('resize', () => redrawLinks());
+    window.addEventListener('resize', () => {
+      redrawLinks();
+      alignAllWeightsToFlow();
+    });
   </script>
 </body>
 </html>
