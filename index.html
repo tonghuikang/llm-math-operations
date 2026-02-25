@@ -1,843 +1,1123 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>121-Parameter Qwen3 Adder</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>121-Parameter Qwen3 Adder Trace</title>
   <style>
     :root {
-      --grid: #cfd6df;
-      --bg: #ffffff;
-      --head: #f3f5f8;
-      --param: #ead7ff;
-      --intermediate: #ffe8c8;
-      --input: #d9f3d3;
-      --output: #d9e8ff;
-      --ink: #1f2933;
-      --cellw: 4ch;
+      --bg: #f5f7fc;
+      --line: #d5dbe8;
+      --grid: #e6ebf5;
+      --text: #111827;
+      --muted: #5e687e;
+      --green: #d5f6cd;
+      --blue: #d9e4ff;
+      --purple: #e9e1ff;
+      --amber: #ffe7bf;
+      --zero: #9ca4b4;
+      --zero-bg: #f1f3f8;
+      --mono: 'IBM Plex Mono', 'JetBrains Mono', Consolas, 'Liberation Mono', Menlo, monospace;
     }
 
-    * {
-      box-sizing: border-box;
-      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-variant-numeric: tabular-nums lining-nums;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text);
       background: var(--bg);
-      color: var(--ink);
-      overflow: auto;
-      font-size: 12px;
-      line-height: 1.3;
     }
 
-    .canvas {
-      min-width: 3000px;
+    .app {
+      min-width: 1600px;
       padding: 10px;
-      position: relative;
-    }
-
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .main {
-      display: grid;
-      grid-template-columns: max-content 580px;
-      gap: 10px;
-      align-items: start;
-    }
-
-    .matrix {
-      border: 1px solid var(--grid);
-      background: #fff;
-      position: relative;
-      z-index: 1;
-    }
-
-    .dense table.sheet th,
-    .dense table.sheet td {
-      min-width: 10px;
-      padding: 1px 1px;
-    }
-
-    table.sheet {
-      border-collapse: collapse;
-      background: #fff;
-    }
-
-    table.sheet th,
-    table.sheet td {
-      border: 1px solid var(--grid);
-      box-sizing: content-box;
-      width: var(--cellw);
-      min-width: var(--cellw);
-      max-width: var(--cellw);
-      padding: 1px 3px;
-      text-align: right;
-      white-space: nowrap;
-      overflow: hidden;
-      font-weight: 500;
-      font-size: inherit;
-    }
-
-    table.sheet th {
-      text-align: center;
-      background: var(--head);
-      font-weight: 700;
-    }
-
-    .title {
-      text-align: left !important;
-      padding-left: 8px !important;
-      width: auto !important;
-      min-width: 0 !important;
-      max-width: none !important;
-    }
-
-    .param {
-      background: var(--param);
-    }
-
-    .intermediate {
-      background: var(--intermediate);
-    }
-
-    .input {
-      background: var(--input);
-    }
-
-    .output {
-      background: var(--output);
-    }
-
-    .ctrl input,
-    .ctrl button {
       width: 100%;
-      min-width: 210px;
-      height: 38px;
-      border: 1px solid var(--grid);
-      background: #fff;
-      color: var(--ink);
-      font: inherit;
-      padding: 5px 8px;
-      outline: none;
     }
 
-    .ctrl button {
-      cursor: pointer;
-    }
-
-    .token-table th,
-    .token-table td {
-      min-width: var(--cellw) !important;
-      max-width: var(--cellw) !important;
-      text-align: center !important;
-      padding: 2px !important;
-    }
-
-    .ctrl table.sheet th,
-    .ctrl table.sheet td {
-      width: auto;
-      min-width: 150px;
-      max-width: none;
-    }
-
-    #resultBar table.sheet th,
-    #resultBar table.sheet td {
-      width: auto;
-      min-width: 8ch;
-      max-width: none;
-      overflow: visible;
-    }
-
-    .center-panel {
+    .top {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      margin-bottom: 8px;
     }
 
-    .architecture-wrap {
+    .controls,
+    .results,
+    .token-strip {
       display: flex;
-      justify-content: flex-start;
-      width: 100%;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
     }
 
-    .architecture-grid {
+    .controls {
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 120px;
+    }
+
+    .field span {
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 600;
+    }
+
+    input[type='number'] {
+      border: 1px solid #cfd6e3;
+      border-radius: 6px;
+      padding: 5px 7px;
+      width: 145px;
+      font: inherit;
+      background: #fff;
+      font-size: 11px;
+    }
+
+    button {
+      border: 1px solid #c7cfde;
+      border-radius: 6px;
+      background: #f2f4fb;
+      padding: 6px 10px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 11px;
+    }
+
+    .chip {
+      border: 1px solid #ccd4e3;
+      border-radius: 6px;
+      background: #fff;
+      padding: 4px 8px;
+      min-width: 130px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chip .label {
+      color: #6b7280;
+      min-width: 66px;
+      text-transform: lowercase;
+    }
+
+    .token-strip {
+      border: 1px solid #d5dced;
+      border-radius: 6px;
+      background: #fff;
+      padding: 8px;
+      overflow: auto;
+    }
+
+    .token-strip .head {
+      color: var(--muted);
+      font-size: 9px;
+      margin-right: 8px;
+      white-space: nowrap;
+    }
+
+    .token-row {
+      display: inline-flex;
+      gap: 2px;
+      align-items: center;
+    }
+
+    .token-cell {
+      width: 2.8ch;
+      min-width: 2.8ch;
+      max-width: 2.8ch;
+      height: 1.45rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--grid);
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .token-input {
+      background: var(--green);
+    }
+
+    .token-output {
+      background: var(--blue);
+    }
+
+    .layout {
+      margin-top: 10px;
+      border: 1px solid #d6ddea;
+      border-radius: 6px;
+      background: #fff;
+      padding: 10px;
+      position: relative;
+      overflow: auto;
+      min-height: 750px;
+    }
+
+    .sheet {
       display: grid;
-      grid-template-columns: max-content max-content max-content;
-      grid-auto-rows: min-content;
-      column-gap: 12px;
-      row-gap: 8px;
+      grid-template-columns: max-content max-content;
+      gap: 6px;
+      align-items: start;
+      position: relative;
+      min-height: 740px;
+    }
+
+    .weights {
+      position: sticky;
+      top: 8px;
+      display: grid;
+      gap: 8px;
+      z-index: 1;
+      height: fit-content;
+    }
+
+    .flow {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: max-content;
+      position: relative;
+    }
+
+    .matrix-box {
+      border: 1px solid var(--grid);
+      border-radius: 6px;
+      background: #fff;
+      padding: 5px;
+      width: max-content;
+      max-width: none;
+      user-select: none;
+      overflow: visible;
+    }
+
+    .matrix-scroll {
+      overflow-x: auto;
+      overflow-y: auto;
+      overflow: auto;
+      width: max-content;
+      min-width: max-content;
+      max-width: none;
+    }
+
+    .head-stack {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      gap: 6px;
+      padding: 4px;
       width: max-content;
     }
 
-    .architecture-grid > div {
-      display: flex;
-      align-items: flex-start;
+    .head-panel {
+      border: 1px solid var(--grid);
+      border-radius: 4px;
+      background: #fff;
+      padding: 2px;
     }
 
-    .architecture-grid .matrix {
-      width: fit-content;
-      min-width: 0;
-      flex: 0 0 auto;
+    .head-panel-title {
+      margin-bottom: 2px;
+      color: #59647d;
+      font-size: 8px;
+      text-align: center;
+      text-transform: lowercase;
+      white-space: nowrap;
     }
 
-    .slot-hidden-top {
-      grid-column: 2 / span 2;
-      grid-row: 1;
+    .title {
+      margin-bottom: 3px;
+      color: #55607a;
+      font-size: 9px;
+      white-space: nowrap;
+      text-transform: lowercase;
     }
 
-    .slot-attn-score {
-      grid-column: 1 / span 2;
-      grid-row: 3;
+    table {
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 11px;
+      width: max-content;
+      min-width: max-content;
     }
 
-    .slot-attn-weight {
-      grid-column: 1 / span 2;
-      grid-row: 2;
+    th,
+    td {
+      border: 1px solid var(--grid);
+      height: 1.45rem;
+      padding: 0;
+      text-align: center;
+      vertical-align: middle;
+      overflow: hidden;
+      white-space: nowrap;
+      font-size: 11px;
+      line-height: 1;
     }
 
-    .slot-query {
-      grid-column: 1;
-      grid-row: 4;
+    th {
+      background: #f7f9ff;
+      color: #59647d;
+      width: 4ch;
+      min-width: 4ch;
+      max-width: 4ch;
+      font-weight: 600;
+      font-size: 9px;
     }
 
-    .slot-key {
-      grid-column: 2;
-      grid-row: 4;
+    .cell {
+      width: 4ch;
+      min-width: 4ch;
+      max-width: 4ch;
+      padding: 0;
+      text-overflow: clip;
+      overflow: hidden;
+      display: table-cell;
+      text-align: center;
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      font-size: 11px;
     }
 
-    .slot-value {
-      grid-column: 3;
-      grid-row: 4;
+    .value {
+      width: 4ch;
+      min-width: 4ch;
+      max-width: 4ch;
+      padding: 0;
+      text-overflow: clip;
+      overflow: hidden;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      font-variant-numeric: tabular-nums;
     }
 
-    .slot-pos-q {
-      grid-column: 2;
-      grid-row: 5;
+    .param { background: var(--purple); }
+    .intermediate { background: var(--amber); }
+    .input { background: var(--green); }
+    .output { background: var(--blue); }
+
+    .zero {
+      color: var(--zero);
+      background: var(--zero-bg);
     }
 
-    .slot-pos-k {
-      grid-column: 3;
-      grid-row: 5;
+    .row-label,
+    .col-label {
+      background: #f8f9fe;
+      color: #5c6577;
+      font-size: 9px;
     }
 
-    .slot-hidden-bottom {
-      grid-column: 2 / span 2;
-      grid-row: 6;
+    .selected,
+    .parent,
+    .child {
+      outline: 2px solid #245cff;
+      outline-offset: -2px;
+      z-index: 30;
+      position: relative;
     }
 
-    .trace-row {
-      display: flex;
-      flex-wrap: nowrap;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
-
-    .weights-side {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      position: sticky;
-      top: 10px;
-      align-self: start;
-    }
-
-    .ok {
-      background: var(--output);
-      font-weight: 700 !important;
-    }
-
-    .bad {
-      background: #ffd9d9;
-      font-weight: 700 !important;
-    }
-
-    #provenanceOverlay {
+    .link-layer {
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 10px;
       width: 0;
       height: 0;
       pointer-events: none;
-      z-index: 30;
-      overflow: visible;
+      z-index: 999;
     }
 
-    .prov-line {
-      stroke: #0f172a;
-      stroke-width: 1.2;
-      opacity: 0.9;
-      vector-effect: non-scaling-stroke;
+    .line {
+      fill: none;
+      stroke: #245cff;
+      stroke-width: 1;
+      opacity: 0.95;
     }
 
-    .prov-line-sink {
-      stroke: #0369a1;
-    }
-
-    .prov-line-source {
-      stroke: #7c2d12;
-    }
-
-    table.sheet td[data-cell-id] {
-      cursor: crosshair;
-    }
-
-    table.sheet td.selected-cell {
-      outline: 2px solid #111;
-      outline-offset: -2px;
-    }
-
-    table.sheet td.source-cell {
-      box-shadow: inset 0 0 0 9999px rgba(250, 204, 21, 0.35);
-    }
-
-    table.sheet td.sink-cell {
-      box-shadow: inset 0 0 0 9999px rgba(56, 189, 248, 0.3);
-    }
-
-    table.sheet td.exact-zero {
-      color: #6b7280;
-    }
-
-    table.sheet td.exact-zero.selected-cell,
-    table.sheet td.exact-zero.source-cell,
-    table.sheet td.exact-zero.sink-cell {
-      color: var(--ink);
+    .status {
+      margin-top: 8px;
+      font-size: 9px;
+      color: #4f596f;
+      min-height: 14px;
     }
   </style>
 </head>
 <body>
-  <div class="canvas">
-    <div class="row">
-      <div id="topBar" class="matrix ctrl"></div>
-      <div id="resultBar" class="matrix"></div>
-    </div>
-
-    <div class="row">
-      <div id="tokenStream" class="matrix"></div>
-    </div>
-
-    <div class="main">
-      <div class="center-panel">
-        <div class="architecture-wrap">
-          <div id="architecture" class="architecture-grid">
-            <div id="slotHiddenTop" class="slot-hidden-top"></div>
-            <div id="slotAttnScore" class="slot-attn-score"></div>
-            <div id="slotAttnWeight" class="slot-attn-weight"></div>
-            <div id="slotQuery" class="slot-query"></div>
-            <div id="slotKey" class="slot-key"></div>
-            <div id="slotValue" class="slot-value"></div>
-            <div id="slotPosQ" class="slot-pos-q"></div>
-            <div id="slotPosK" class="slot-pos-k"></div>
-            <div id="slotHiddenBottom" class="slot-hidden-bottom"></div>
-          </div>
+  <div class="app">
+    <div class="top">
+      <div class="controls">
+        <div class="field">
+          <span>a</span>
+          <input id="aInput" type="number" min="0" max="9999999999" value="1234567890" />
         </div>
-
-        <div id="traceRow" class="trace-row"></div>
+        <div class="field">
+          <span>b</span>
+          <input id="bInput" type="number" min="0" max="9999999999" value="9753086431" />
+        </div>
+        <button id="computeBtn">Compute</button>
+        <button id="randomBtn">Random</button>
+        <div class="chip"><span class="label">status</span><span id="statusText">idle</span></div>
       </div>
-
-      <div id="weightsSide" class="weights-side"></div>
+      <div class="results">
+        <div class="chip"><span class="label">model</span><span id="modelText">0</span></div>
+        <div class="chip"><span class="label">expected</span><span id="expectedText">0</span></div>
+        <div class="chip"><span class="label">check</span><span id="checkText">0</span></div>
+      </div>
+      <div class="token-strip">
+        <span class="head">token</span>
+        <span class="token-row" id="tokenRow"></span>
+      </div>
     </div>
-    <svg id="provenanceOverlay" aria-hidden="true"></svg>
+
+    <div class="layout" id="layout">
+      <div class="sheet" id="sheet">
+        <div class="weights" id="weightsColumn"></div>
+        <div class="flow" id="flowColumn"></div>
+      </div>
+      <svg class="link-layer" id="linkLayer"></svg>
+    </div>
+
+    <div class="status" id="validationText">-</div>
   </div>
 
   <script>
     const MODEL_DIM = 3;
-    const ATTENTION_HEADS = 4;
-    const KEY_VALUE_HEADS = 1;
-    const HEAD_DIM = 2;
-    const INTERMEDIATE_SIZE = 2;
-    const VOCAB_SIZE = 10;
+    const VOCAB = 10;
+    const INPUT_DIGITS = 10;
     const OUTPUT_DIGITS = 11;
-    const MAX_ADDEND = 9999999999n;
+    const INPUT_TOKENS = 24;
+    const MAX_VAL = 9999999999;
+
+    const ATTN_HEADS = 4;
+    const HEAD_DIM = 2;
     const EPS = 1e-6;
 
-    const EMBED_CONST = 1000.0;
+    const EMBED_CONST = 1000;
     const DIGIT_SCALE = EMBED_CONST / Math.sqrt(MODEL_DIM);
     const CONST_NORM = Math.sqrt(MODEL_DIM);
-    const ALPHA = 20.0;
-    const QK_NORM_SCALE = 256.0;
-    const DECODE_LINEAR_EPS = 5e-4;
-    const DECODE_QUAD = DECODE_LINEAR_EPS / 2.0;
+    const ALPHA = 20;
     const CARRY_SLOPE = -0.1;
 
-    function qvec(offset) {
-      return [Math.cos(offset), -Math.sin(offset)];
-    }
+    const NEG_INF = -1e20;
 
-    function buildWeights() {
-      const embed = [];
-      for (let d = 0; d < 10; d += 1) {
-        embed.push([
-          EMBED_CONST - DECODE_QUAD * d * d,
-          d,
-          DECODE_LINEAR_EPS * d
-        ]);
-      }
+    const qVec = (t) => [Math.cos(t), -Math.sin(t)];
 
-      const qPrevA = qvec(23);
-      const qPrevB = qvec(11);
-      const qCurA = qvec(22);
-      const qCurB = qvec(10);
-
-      const qProj = [
-        [qPrevA[0], 0.0, 0.0],
-        [qPrevA[1], 0.0, 0.0],
-        [qPrevB[0], 0.0, 0.0],
-        [qPrevB[1], 0.0, 0.0],
-        [qCurA[0], 0.0, 0.0],
-        [qCurA[1], 0.0, 0.0],
-        [qCurB[0], 0.0, 0.0],
-        [qCurB[1], 0.0, 0.0]
-      ];
-
-      const oProj = [
-        [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [-1.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0]
-      ];
-
-      const gateProj = [
-        [
-          ALPHA * (-188.0) / CONST_NORM,
-          ALPHA * (-2.0) * DIGIT_SCALE,
-          ALPHA * (20.0) * DIGIT_SCALE
-        ],
-        [
-          ALPHA * (-189.0) / CONST_NORM,
-          ALPHA * (-2.0) * DIGIT_SCALE,
-          ALPHA * (20.0) * DIGIT_SCALE
-        ]
-      ];
-
-      const upProj = [
-        [1.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0]
-      ];
-
-      const scale = 1.0 / (ALPHA * CONST_NORM);
-      const downProj = [
-        [0.0, 0.0],
-        [0.0, 0.0],
-        [-10.0 * scale, 10.0 * scale]
-      ];
-
-      return {
-        embed,
-        input_norm: [1.0, 1.0, 1.0],
-        q_proj: qProj,
-        k_proj: [
-          [1.0, 0.0, 0.0],
-          [0.0, 0.0, 0.0]
-        ],
-        v_proj: [
-          [0.0, DIGIT_SCALE, 0.0],
-          [0.0, 0.0, 0.0]
-        ],
-        q_norm: [QK_NORM_SCALE, QK_NORM_SCALE],
-        k_norm: [QK_NORM_SCALE, QK_NORM_SCALE],
-        o_proj: oProj,
-        post_attn_norm: [1.0, 1.0, 1.0],
-        gate_proj: gateProj,
-        up_proj: upProj,
-        down_proj: downProj,
-        final_norm: [
-          1.0 / CONST_NORM,
-          CARRY_SLOPE * DIGIT_SCALE * DECODE_LINEAR_EPS,
-          DIGIT_SCALE
-        ]
-      };
-    }
-
-    const WEIGHTS = buildWeights();
-    const TABLE_IDS = {
-      w_embed: "w_embed",
-      w_input_norm: "w_input_norm",
-      w_q_proj: "w_q_proj",
-      w_k_proj: "w_k_proj",
-      w_v_proj: "w_v_proj",
-      w_q_norm: "w_q_norm",
-      w_k_norm: "w_k_norm",
-      w_o_proj: "w_o_proj",
-      w_post_attn_norm: "w_post_attn_norm",
-      w_gate_proj: "w_gate_proj",
-      w_up_proj: "w_up_proj",
-      w_down_proj: "w_down_proj",
-      w_final_norm: "w_final_norm",
-      arch_hidden_top: "arch_hidden_top",
-      arch_attn_score_h0: "arch_attn_score_h0",
-      arch_attn_weight_h0: "arch_attn_weight_h0",
-      arch_query_states: "arch_query_states",
-      arch_key_states: "arch_key_states",
-      arch_value_states: "arch_value_states",
-      arch_pos_q: "arch_pos_q",
-      arch_pos_k: "arch_pos_k",
-      arch_hidden_bottom: "arch_hidden_bottom",
-      tr_embedded: "tr_embedded",
-      tr_normed: "tr_normed",
-      tr_Q: "tr_Q",
-      tr_K: "tr_K",
-      tr_V: "tr_V",
-      tr_q_heads_rope: "tr_q_heads_rope",
-      tr_attn_weight: "tr_attn_weight",
-      tr_attn_out: "tr_attn_out",
-      tr_residual1: "tr_residual1",
-      tr_post_normed: "tr_post_normed",
-      tr_gate: "tr_gate",
-      tr_up: "tr_up",
-      tr_silu_mul_up: "tr_silu_mul_up",
-      tr_mlp_out: "tr_mlp_out",
-      tr_residual2: "tr_residual2",
-      tr_final_normed: "tr_final_normed",
-      tr_logits: "tr_logits"
+    const PARAMS = {
+      embed: Array.from({ length: VOCAB }, (_, d) => [
+        EMBED_CONST - (5e-4 / 2) * d * d,
+        d,
+        5e-4 * d,
+      ]),
+      input_norm: [1, 1, 1],
+      q_norm: [256, 256],
+      k_norm: [256, 256],
+      q_proj: [
+        [qVec(23)[0], 0, 0],
+        [qVec(23)[1], 0, 0],
+        [qVec(11)[0], 0, 0],
+        [qVec(11)[1], 0, 0],
+        [qVec(22)[0], 0, 0],
+        [qVec(22)[1], 0, 0],
+        [qVec(10)[0], 0, 0],
+        [qVec(10)[1], 0, 0],
+      ],
+      k_proj: [
+        [1, 0, 0],
+        [0, 0, 0],
+      ],
+      v_proj: [
+        [0, DIGIT_SCALE, 0],
+        [0, 0, 0],
+      ],
+      o_proj: [
+        [0, 0, 0, 0, 0, 0, 0, 0],
+        [-1, 0, -1, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 1, 0, 1, 0],
+      ],
+      post_attn_norm: [1, 1, 1],
+      gate_proj: [
+        [ALPHA * (-188.0) / CONST_NORM, ALPHA * (-2.0) * DIGIT_SCALE, ALPHA * (20.0) * DIGIT_SCALE],
+        [ALPHA * (-189.0) / CONST_NORM, ALPHA * (-2.0) * DIGIT_SCALE, ALPHA * (20.0) * DIGIT_SCALE],
+      ],
+      up_proj: [
+        [1, 0, 0],
+        [1, 0, 0],
+      ],
+      down_proj: [
+        [0, 0],
+        [0, 0],
+        [-(10.0) / (ALPHA * CONST_NORM), +(10.0) / (ALPHA * CONST_NORM)],
+      ],
+      final_norm: [1 / CONST_NORM, CARRY_SLOPE * DIGIT_SCALE * 5e-4, DIGIT_SCALE],
     };
 
-    let CELL_ELEMENTS = new Map();
-    let CELL_PARENTS = new Map();
-    let CELL_CHILDREN = new Map();
-    let ACTIVE_CELL_ID = null;
-    let ACTIVE_TRACE_MODE = "none";
-    let REDRAW_PENDING = false;
-    let AUTO_TABLE_COUNTER = 0;
+    const appState = {
+      nodes: new Map(),
+      visibleNodeIds: new Set(),
+      tensorRefs: null,
+      lastTensorLength: INPUT_TOKENS + OUTPUT_DIGITS,
+      generationSteps: [],
+      selection: {
+        id: null,
+        mode: 'none',
+      },
+    };
 
-    function cellId(tableId, row, col) {
-      return tableId + ":r" + row + ":c" + col;
-    }
+    const aInput = document.getElementById('aInput');
+    const bInput = document.getElementById('bInput');
+    const modelText = document.getElementById('modelText');
+    const expectedText = document.getElementById('expectedText');
+    const checkText = document.getElementById('checkText');
+    const statusText = document.getElementById('statusText');
+    const validationText = document.getElementById('validationText');
 
-    function resetProvenanceRegistry() {
-      CELL_ELEMENTS = new Map();
-      CELL_PARENTS = new Map();
-      CELL_CHILDREN = new Map();
-      clearProvenanceOverlay();
-      clearCellHighlights();
-    }
+    const tokenRow = document.getElementById('tokenRow');
+    const flowColumn = document.getElementById('flowColumn');
+    const weightsColumn = document.getElementById('weightsColumn');
+    const linkLayer = document.getElementById('linkLayer');
+    const layout = document.getElementById('layout');
+    const sheet = document.getElementById('sheet');
 
-    function registerCellElement(tableId, row, col, el) {
-      const id = cellId(tableId, row, col);
-      el.dataset.cellId = id;
-      CELL_ELEMENTS.set(id, el);
-      return id;
-    }
+    const WEIGHT_MATRIX_SPECS = [
+      ['embed', 'embed 10x3', 10, 3],
+      ['input_norm', 'input_norm 1x3', 1, 3],
+      ['q_proj', 'q_proj 8x3', 8, 3],
+      ['k_proj', 'k_proj 2x3', 2, 3],
+      ['v_proj', 'v_proj 2x3', 2, 3],
+      ['q_norm', 'q_norm 1x2', 1, 2],
+      ['k_norm', 'k_norm 1x2', 1, 2],
+      ['o_proj', 'o_proj 3x8', 3, 8],
+      ['post_attn_norm', 'post_attn_norm 1x3', 1, 3],
+      ['gate_proj', 'gate_proj 2x3', 2, 3],
+      ['up_proj', 'up_proj 2x3', 2, 3],
+      ['down_proj', 'down_proj 3x2', 3, 2],
+      ['final_norm', 'final_norm 1x3', 1, 3],
+    ];
 
-    function uniqueList(values) {
-      const out = [];
-      const seen = new Set();
-      for (let i = 0; i < values.length; i += 1) {
-        const v = values[i];
-        if (!v || seen.has(v)) {
-          continue;
+    class Graph {
+      constructor() {
+        this.nodes = new Map();
+      }
+
+      get(id) {
+        return this.nodes.get(id);
+      }
+
+      has(id) {
+        return this.nodes.has(id);
+      }
+
+      put(id, value, category = 'intermediate') {
+        const node = this.nodes.get(id) || { id, parents: new Set(), children: new Set(), category };
+        node.value = value;
+        node.category = category || node.category || 'intermediate';
+        this.nodes.set(id, node);
+        return node;
+      }
+
+      edge(parentId, childId) {
+        if (!parentId || !childId || parentId === childId) return;
+        const p = this.nodes.get(parentId);
+        const c = this.nodes.get(childId);
+        if (!p || !c) return;
+        p.children.add(childId);
+        c.parents.add(parentId);
+      }
+
+      removeOutgoing(id) {
+        const node = this.nodes.get(id);
+        if (!node) return;
+        for (const childId of node.children) {
+          const child = this.nodes.get(childId);
+          if (!child) continue;
+          child.parents.delete(id);
         }
-        seen.add(v);
-        out.push(v);
+        node.children.clear();
       }
-      return out;
     }
 
-    function setParents(map, childId, parentIds) {
-      map.set(childId, uniqueList(parentIds));
-    }
-
-    function fillRootTable(map, tableId, rows, cols) {
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          setParents(map, cellId(tableId, r, c), []);
+    function addNode(graph, id, value, category = 'intermediate', parents = []) {
+      const node = graph.put(id, value, category);
+      const parentSet = new Set();
+      const walk = (item) => {
+        if (typeof item === 'string') {
+          parentSet.add(item);
+          return;
         }
-      }
-    }
-
-    function clearCellHighlights() {
-      const marked = document.querySelectorAll("td.selected-cell, td.source-cell, td.sink-cell");
-      for (let i = 0; i < marked.length; i += 1) {
-        marked[i].classList.remove("selected-cell", "source-cell", "sink-cell");
-      }
-    }
-
-    function buildChildrenMap(parentsMap) {
-      const children = new Map();
-      parentsMap.forEach((parents, child) => {
-        if (!children.has(child)) {
-          children.set(child, []);
-        }
-        for (let i = 0; i < parents.length; i += 1) {
-          const parent = parents[i];
-          if (!children.has(parent)) {
-            children.set(parent, []);
-          }
-          children.get(parent).push(child);
-        }
-      });
-      children.forEach((list, key) => {
-        children.set(key, uniqueList(list));
-      });
-      return children;
-    }
-
-    function getRelatedCells(cellId, mode) {
-      if (mode === "sink") {
-        return CELL_CHILDREN.get(cellId) || [];
-      }
-      if (mode === "source") {
-        return CELL_PARENTS.get(cellId) || [];
-      }
-      return [];
-    }
-
-    function overlayEl() {
-      return document.getElementById("provenanceOverlay");
-    }
-
-    function clearProvenanceOverlay() {
-      const overlay = overlayEl();
-      overlay.innerHTML = "";
-    }
-
-    function resizeOverlay() {
-      const canvas = document.querySelector(".canvas");
-      const overlay = overlayEl();
-      const w = Math.ceil(canvas.scrollWidth);
-      const h = Math.ceil(canvas.scrollHeight);
-      overlay.setAttribute("width", String(w));
-      overlay.setAttribute("height", String(h));
-      overlay.style.width = w + "px";
-      overlay.style.height = h + "px";
-    }
-
-    function cellCenter(el) {
-      const canvas = document.querySelector(".canvas");
-      const cellRect = el.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
-      return {
-        x: cellRect.left - canvasRect.left + cellRect.width / 2,
-        y: cellRect.top - canvasRect.top + cellRect.height / 2
+        if (!item || !Array.isArray(item)) return;
+        for (const child of item) walk(child);
       };
+      walk(parents);
+      for (const parent of parentSet) graph.edge(parent, id);
+      return node;
     }
 
-    function renderProvenanceLines() {
-      clearProvenanceOverlay();
-      if (!ACTIVE_CELL_ID || ACTIVE_TRACE_MODE === "none" || !CELL_ELEMENTS.has(ACTIVE_CELL_ID)) {
-        return;
+    function formatCell(v) {
+      if (!Number.isFinite(v)) return String(v);
+      if (Object.is(v, -0)) v = 0;
+      if (v === 0) return '0';
+
+      const abs = Math.abs(v);
+      const sign = v >= 0 ? '+' : '-';
+
+      if (abs >= 1000) {
+        return `${sign}${abs.toExponential(0).replace('+', '').replace('e+', 'e').replace('e', 'e')}`;
       }
-      resizeOverlay();
-      const overlay = overlayEl();
-      const targetEl = CELL_ELEMENTS.get(ACTIVE_CELL_ID);
-      const target = cellCenter(targetEl);
-      const related = getRelatedCells(ACTIVE_CELL_ID, ACTIVE_TRACE_MODE);
-      for (let i = 0; i < related.length; i += 1) {
-        const relatedEl = CELL_ELEMENTS.get(related[i]);
-        if (!relatedEl) {
-          continue;
-        }
-        const point = cellCenter(relatedEl);
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute(
-          "class",
-          "prov-line " + (ACTIVE_TRACE_MODE === "sink" ? "prov-line-sink" : "prov-line-source")
-        );
-        if (ACTIVE_TRACE_MODE === "sink") {
-          line.setAttribute("x1", String(target.x));
-          line.setAttribute("y1", String(target.y));
-          line.setAttribute("x2", String(point.x));
-          line.setAttribute("y2", String(point.y));
-        } else {
-          line.setAttribute("x1", String(point.x));
-          line.setAttribute("y1", String(point.y));
-          line.setAttribute("x2", String(target.x));
-          line.setAttribute("y2", String(target.y));
-        }
-        overlay.appendChild(line);
+
+      if (abs >= 100) {
+        const rounded = Math.round(v);
+        const a = Math.abs(rounded);
+        if (a >= 1000) return `${sign}${a >= 1000 ? '1e3' : a}`;
+        if (a === 1000) return `${sign}1e3`;
+        return `${sign}${Math.abs(rounded)}`;
       }
+
+      if (abs < 1e-20) {
+        return `+0.0`;
+      }
+
+      if (abs < 0.1) {
+        const e = abs.toExponential(0);
+        const [mant, expRaw] = e.split('e');
+        const exp = Number(expRaw);
+        if (exp <= 0 && -exp <= 9) {
+          return `${sign}${Number(mant)}f${-exp}`;
+        }
+        return `${sign}0.0`;
+      }
+
+      const rounded1 = Math.round(v * 10) / 10;
+      const txt = rounded1.toFixed(1);
+      const n = Number(txt);
+      if (Number.isInteger(n) && Math.abs(n) < 100) {
+        return `${sign}${Math.abs(n)}`;
+      }
+      return `${sign}${Math.abs(Number(txt))}`;
     }
 
-    function applyTraceMode(cell, mode) {
-      if (!cell || !CELL_ELEMENTS.has(cell)) {
-        return;
-      }
-      ACTIVE_CELL_ID = cell;
-      ACTIVE_TRACE_MODE = mode;
-      clearCellHighlights();
-      clearProvenanceOverlay();
-      if (mode === "none") {
-        return;
-      }
-      const selected = CELL_ELEMENTS.get(cell);
-      selected.classList.add("selected-cell");
-      const related = getRelatedCells(cell, mode);
-      for (let i = 0; i < related.length; i += 1) {
-        const el = CELL_ELEMENTS.get(related[i]);
-        if (!el) {
-          continue;
-        }
-        if (mode === "sink") {
-          el.classList.add("sink-cell");
-        } else {
-          el.classList.add("source-cell");
-        }
-      }
-      renderProvenanceLines();
+    function makeArrayRefs(prefix, len) {
+      return Array.from({ length: len }, (_, i) => `${prefix}.c${i}`);
     }
 
-    function toggleTraceForCell(cell) {
-      if (!cell || !CELL_ELEMENTS.has(cell)) {
-        return;
+    function makeMatrixRefs(prefix, rows, cols) {
+      if (rows === 1) {
+        return [Array.from({ length: cols }, (_, c) => `${prefix}.c${c}`)];
       }
-      if (ACTIVE_CELL_ID !== cell) {
-        applyTraceMode(cell, "sink");
-        return;
-      }
-      if (ACTIVE_TRACE_MODE === "sink") {
-        applyTraceMode(cell, "source");
-        return;
-      }
-      if (ACTIVE_TRACE_MODE === "source") {
-        applyTraceMode(cell, "none");
-        return;
-      }
-      applyTraceMode(cell, "sink");
-    }
-
-    function scheduleProvenanceRedraw() {
-      if (!ACTIVE_CELL_ID || ACTIVE_TRACE_MODE === "none" || REDRAW_PENDING) {
-        return;
-      }
-      REDRAW_PENDING = true;
-      requestAnimationFrame(() => {
-        REDRAW_PENDING = false;
-        renderProvenanceLines();
-      });
+      return Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => `${prefix}.r${r}.c${c}`),
+      );
     }
 
     function dot(a, b) {
-      let s = 0.0;
-      for (let i = 0; i < a.length; i += 1) {
-        s += a[i] * b[i];
-      }
+      let s = 0;
+      const n = Math.min(a.length, b.length);
+      for (let i = 0; i < n; i++) s += a[i] * b[i];
       return s;
     }
 
-    function matVec(weight, x) {
-      const out = new Array(weight.length);
-      for (let r = 0; r < weight.length; r += 1) {
-        out[r] = dot(weight[r], x);
-      }
-      return out;
+    function rmsNorm(vals, weights, eps = EPS) {
+      let ss = 0;
+      for (let i = 0; i < vals.length; i++) ss += vals[i] * vals[i];
+      const inv = 1 / Math.sqrt(ss / vals.length + eps);
+      return vals.map((x, i) => x * inv * weights[i]);
     }
 
-    function addVec(a, b) {
-      const out = new Array(a.length);
-      for (let i = 0; i < a.length; i += 1) {
-        out[i] = a[i] + b[i];
-      }
-      return out;
-    }
-
-    function mulVec(a, b) {
-      const out = new Array(a.length);
-      for (let i = 0; i < a.length; i += 1) {
-        out[i] = a[i] * b[i];
-      }
-      return out;
-    }
-
-    function transpose(matrix) {
-      const rows = matrix.length;
-      const cols = matrix[0].length;
-      const out = Array.from({ length: cols }, () => new Array(rows).fill(0.0));
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          out[c][r] = matrix[r][c];
-        }
-      }
-      return out;
-    }
-
-    function rmsNorm(x, weights, eps) {
-      let meanSq = 0.0;
-      for (let i = 0; i < x.length; i += 1) {
-        meanSq += x[i] * x[i];
-      }
-      meanSq /= x.length;
-      const inv = 1.0 / Math.sqrt(meanSq + eps);
-      const out = new Array(x.length);
-      for (let i = 0; i < x.length; i += 1) {
-        out[i] = x[i] * inv * weights[i];
-      }
-      return out;
-    }
-
-    function sigmoid(x) {
-      return 1.0 / (1.0 + Math.exp(-x));
-    }
-
-    function silu(x) {
-      return x * sigmoid(x);
-    }
-
-    function ropeRotate(vec2d, position) {
-      const angle = position;
-      const c = Math.cos(angle);
-      const s = Math.sin(angle);
+    function ropeRotatePair(x, y, pos) {
+      const c = Math.cos(pos);
+      const s = Math.sin(pos);
       return [
-        vec2d[0] * c - vec2d[1] * s,
-        vec2d[0] * s + vec2d[1] * c
+        x * c - y * s,
+        x * s + y * c,
       ];
     }
 
-    function reshapeHeads(flat, heads, headDim) {
-      const out = [];
-      for (let h = 0; h < heads; h += 1) {
-        const base = h * headDim;
-        out.push(flat.slice(base, base + headDim));
-      }
-      return out;
+    function silu(x) {
+      return x / (1 + Math.exp(-x));
     }
 
-    function flattenHeads(heads) {
-      const out = [];
-      for (let h = 0; h < heads.length; h += 1) {
-        out.push(heads[h][0], heads[h][1]);
-      }
-      return out;
+    function softmaxVec(v) {
+      if (v.length === 0) return [];
+      let m = -Infinity;
+      for (const x of v) if (x > m) m = x;
+      const ex = v.map((x) => Math.exp(x - m));
+      const sum = ex.reduce((a, b) => a + b, 0);
+      if (sum === 0) return ex.map(() => 0);
+      return ex.map((x) => x / sum);
     }
 
-    function softmax(values) {
-      let maxV = -Infinity;
-      for (let i = 0; i < values.length; i += 1) {
-        if (values[i] > maxV) {
-          maxV = values[i];
+    function encodeInputs(a, b) {
+      const aStr = String(Math.max(0, Math.min(MAX_VAL, Math.floor(a)))).padStart(INPUT_DIGITS, '0');
+      const bStr = String(Math.max(0, Math.min(MAX_VAL, Math.floor(b)))).padStart(INPUT_DIGITS, '0');
+      const aDigits = [...aStr].map((ch) => Number(ch)).reverse();
+      const bDigits = [...bStr].map((ch) => Number(ch)).reverse();
+      return [0, ...aDigits, 0, 0, ...bDigits, 0];
+    }
+
+    function expectedOutputStr(a, b) {
+      return BigInt(a) + BigInt(b);
+    }
+
+    function decodeDigitsFromTokens(tokens) {
+      return [...tokens.slice(-OUTPUT_DIGITS)].reverse().join('');
+    }
+
+    function parseDigitsToNumberOrBigInt(text) {
+      return BigInt(text || '0');
+    }
+
+    function trimLeadingZeros(text) {
+      return String(text).replace(/^0+(?=\d)/, '');
+    }
+
+    function addAllWeights(graph) {
+      for (let d = 0; d < VOCAB; d++) {
+        for (let c = 0; c < MODEL_DIM; c++) {
+          graph.put(`param.embed.r${d}.c${c}`, PARAMS.embed[d][c], 'param');
         }
       }
-      let sum = 0.0;
-      const exps = new Array(values.length);
-      for (let i = 0; i < values.length; i += 1) {
-        const e = Math.exp(values[i] - maxV);
-        exps[i] = e;
-        sum += e;
+      for (let i = 0; i < MODEL_DIM; i++) {
+        graph.put(`param.input_norm.c${i}`, PARAMS.input_norm[i], 'param');
+        graph.put(`param.post_attn_norm.c${i}`, PARAMS.post_attn_norm[i], 'param');
+        graph.put(`param.final_norm.c${i}`, PARAMS.final_norm[i], 'param');
       }
-      const out = new Array(values.length);
-      for (let i = 0; i < values.length; i += 1) {
-        out[i] = exps[i] / sum;
+      for (let i = 0; i < HEAD_DIM; i++) {
+        graph.put(`param.q_norm.c${i}`, PARAMS.q_norm[i], 'param');
+        graph.put(`param.k_norm.c${i}`, PARAMS.k_norm[i], 'param');
       }
-      return out;
+      for (let r = 0; r < ATTN_HEADS * HEAD_DIM; r++) {
+        for (let c = 0; c < MODEL_DIM; c++) {
+          graph.put(`param.q_proj.r${r}.c${c}`, PARAMS.q_proj[r][c], 'param');
+        }
+      }
+      for (let r = 0; r < HEAD_DIM; r++) {
+        for (let c = 0; c < MODEL_DIM; c++) {
+          graph.put(`param.k_proj.r${r}.c${c}`, PARAMS.k_proj[r][c], 'param');
+          graph.put(`param.v_proj.r${r}.c${c}`, PARAMS.v_proj[r][c], 'param');
+          graph.put(`param.gate_proj.r${r}.c${c}`, PARAMS.gate_proj[r][c], 'param');
+          graph.put(`param.up_proj.r${r}.c${c}`, PARAMS.up_proj[r][c], 'param');
+        }
+      }
+      for (let r = 0; r < MODEL_DIM; r++) {
+        for (let c = 0; c < ATTN_HEADS * HEAD_DIM; c++) {
+          graph.put(`param.o_proj.r${r}.c${c}`, PARAMS.o_proj[r][c], 'param');
+        }
+      }
+      for (let r = 0; r < MODEL_DIM; r++) {
+        for (let c = 0; c < HEAD_DIM; c++) {
+          graph.put(`param.down_proj.r${r}.c${c}`, PARAMS.down_proj[r][c], 'param');
+        }
+      }
     }
 
-    function argmax(values) {
+    function forward(tokens, trace = false) {
+      const g = new Graph();
+      addAllWeights(g);
+      const put = (id, value, category, parents = []) => addNode(g, id, value, category, parents);
+
+      const n = tokens.length;
+      const qIndex = n - 1;
+      const traceMode = trace === true;
+      const scoreStart = traceMode ? 0 : qIndex;
+      const layerStart = traceMode ? INPUT_TOKENS : qIndex;
+      const materializeOutputSpan = (t) => t >= INPUT_TOKENS;
+      const tokenIds = new Array(n);
+
+      const embedded = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const normed = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const qRaw = Array.from({ length: n }, () => Array(8).fill(0));
+      const kRaw = Array.from({ length: n }, () => Array(2).fill(0));
+      const vRaw = Array.from({ length: n }, () => Array(2).fill(0));
+      const qNorm = Array.from({ length: n }, () => Array(8).fill(0));
+      const kNorm = Array.from({ length: n }, () => Array(2).fill(0));
+      const vNorm = Array.from({ length: n }, () => Array(2).fill(0));
+      const qHead = Array.from({ length: n }, () => Array(8).fill(0));
+      const kHead = Array.from({ length: n }, () => Array(2).fill(0));
+      const attnOutMatrix = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const residual1 = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const postNormed = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const gate = Array.from({ length: n }, () => Array(2).fill(0));
+      const up = Array.from({ length: n }, () => Array(2).fill(0));
+      const siluMul = Array.from({ length: n }, () => Array(2).fill(0));
+      const mlpOut = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const residual2 = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+      const finalNormed = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
+
+      const refs = {
+        tokenIds: tokenIds,
+        embedded: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        normed: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        qRaw: Array.from({ length: n }, () => Array(8).fill(null)),
+        kRaw: Array.from({ length: n }, () => Array(2).fill(null)),
+        vRaw: Array.from({ length: n }, () => Array(2).fill(null)),
+        qNorm: Array.from({ length: n }, () => Array(8).fill(null)),
+        kNorm: Array.from({ length: n }, () => Array(2).fill(null)),
+        qHead: Array.from({ length: n }, () => Array(8).fill(null)),
+        kHead: Array.from({ length: n }, () => Array(2).fill(null)),
+        attnOutMatrix: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        residual1: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        postNormed: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        gate: Array.from({ length: n }, () => Array(2).fill(null)),
+        up: Array.from({ length: n }, () => Array(2).fill(null)),
+        siluMul: Array.from({ length: n }, () => Array(2).fill(null)),
+        mlpOut: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        residual2: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        finalNormed: Array.from({ length: n }, () => Array(MODEL_DIM).fill(null)),
+        attnScoreByHead: Array.from({ length: ATTN_HEADS }, () => Array.from({ length: n }, () => Array(n).fill(null))),
+        attnWeightByHead: Array.from({ length: ATTN_HEADS }, () => Array.from({ length: n }, () => Array(n).fill(null))),
+        logitsPerToken: Array.from({ length: n }, () => Array(VOCAB).fill(null)),
+      };
+
+      for (let t = 0; t < n; t++) {
+        const tok = Math.max(0, Math.min(9, Math.round(tokens[t])));
+        const tokId = `tok.t${t}`;
+        const tokCat = t < INPUT_TOKENS ? 'input' : 'output';
+        tokenIds[t] = tokId;
+        g.put(tokId, tok, tokCat);
+
+        for (let c = 0; c < MODEL_DIM; c++) {
+          const val = PARAMS.embed[tok][c];
+          const eid = `act.embedded.t${t}.c${c}`;
+          embedded[t][c] = val;
+          put(eid, val, 'intermediate', [tokId, `param.embed.r${tok}.c${c}`]);
+          refs.embedded[t][c] = eid;
+        }
+      }
+
+      // input norm for each token
+      for (let t = 0; t < n; t++) {
+        const v = embedded[t];
+        const out = rmsNorm(v, PARAMS.input_norm);
+        normed[t] = out;
+        for (let c = 0; c < MODEL_DIM; c++) {
+          const rid = `act.normed.t${t}.c${c}`;
+          put(rid, out[c], 'intermediate', [refs.embedded[t], `param.input_norm.c${c}`]);
+          refs.normed[t][c] = rid;
+        }
+      }
+
+      // q/k/v projection for each token
+      for (let t = 0; t < n; t++) {
+        for (let o = 0; o < 8; o++) {
+          let s = 0;
+          const id = `act.q_raw.t${t}.c${o}`;
+          for (let j = 0; j < MODEL_DIM; j++) {
+            s += normed[t][j] * PARAMS.q_proj[o][j];
+          }
+          qRaw[t][o] = s;
+          put(id, s, 'intermediate', [refs.normed[t], `param.q_proj.r${o}.c0`, `param.q_proj.r${o}.c1`, `param.q_proj.r${o}.c2`]);
+          refs.qRaw[t][o] = id;
+        }
+        for (let o = 0; o < 2; o++) {
+          let ks = 0;
+          let vs = 0;
+          for (let j = 0; j < MODEL_DIM; j++) {
+            ks += normed[t][j] * PARAMS.k_proj[o][j];
+            vs += normed[t][j] * PARAMS.v_proj[o][j];
+          }
+          kRaw[t][o] = ks;
+          vRaw[t][o] = vs;
+          const kid = `act.k_raw.t${t}.c${o}`;
+          const vid = `act.v_raw.t${t}.c${o}`;
+          put(kid, ks, 'intermediate', [refs.normed[t], `param.k_proj.r${o}.c0`, `param.k_proj.r${o}.c1`, `param.k_proj.r${o}.c2`]);
+          put(vid, vs, 'intermediate', [refs.normed[t], `param.v_proj.r${o}.c0`, `param.v_proj.r${o}.c1`, `param.v_proj.r${o}.c2`]);
+          refs.kRaw[t][o] = kid;
+          refs.vRaw[t][o] = vid;
+        }
+      }
+
+      // q/k/v norm + rope
+      for (let t = 0; t < n; t++) {
+        for (let h = 0; h < ATTN_HEADS; h++) {
+          const b0 = h * 2;
+          const pair = [qRaw[t][b0], qRaw[t][b0 + 1]];
+          const denom = Math.sqrt((pair[0] * pair[0] + pair[1] * pair[1]) / 2 + EPS);
+          const inv = 1 / denom;
+
+          const n0 = pair[0] * inv * PARAMS.q_norm[0];
+          const n1 = pair[1] * inv * PARAMS.q_norm[1];
+          const r0 = `act.q_norm.t${t}.c${b0}`;
+          const r1 = `act.q_norm.t${t}.c${b0 + 1}`;
+          qNorm[t][b0] = n0;
+          qNorm[t][b0 + 1] = n1;
+          put(r0, n0, 'intermediate', [refs.qRaw[t][b0], refs.qRaw[t][b0 + 1], 'param.q_norm.c0']);
+          put(r1, n1, 'intermediate', [refs.qRaw[t][b0], refs.qRaw[t][b0 + 1], 'param.q_norm.c1']);
+
+          const rotated = ropeRotatePair(qNorm[t][b0], qNorm[t][b0 + 1], t);
+          const hr0 = `act.q_heads.t${t}.c${b0}`;
+          const hr1 = `act.q_heads.t${t}.c${b0 + 1}`;
+          const h0 = rotated[0];
+          const h1 = rotated[1];
+          qHead[t][b0] = h0;
+          qHead[t][b0 + 1] = h1;
+          put(hr0, h0, 'intermediate', [r0, r1]);
+          put(hr1, h1, 'intermediate', [r0, r1]);
+          refs.qNorm[t][b0] = r0;
+          refs.qNorm[t][b0 + 1] = r1;
+          refs.qHead[t][b0] = hr0;
+          refs.qHead[t][b0 + 1] = hr1;
+        }
+
+        {
+          const denom = Math.sqrt((kRaw[t][0] * kRaw[t][0] + kRaw[t][1] * kRaw[t][1]) / 2 + EPS);
+          const inv = 1 / denom;
+
+          const n0 = kRaw[t][0] * inv * PARAMS.k_norm[0];
+          const n1 = kRaw[t][1] * inv * PARAMS.k_norm[1];
+          const r0 = `act.k_norm.t${t}.c0`;
+          const r1 = `act.k_norm.t${t}.c1`;
+          kNorm[t][0] = n0;
+          kNorm[t][1] = n1;
+          put(r0, n0, 'intermediate', [refs.kRaw[t][0], refs.kRaw[t][1], 'param.k_norm.c0']);
+          put(r1, n1, 'intermediate', [refs.kRaw[t][0], refs.kRaw[t][1], 'param.k_norm.c1']);
+
+          const rotated = ropeRotatePair(kNorm[t][0], kNorm[t][1], t);
+          const hr0 = `act.k_heads.t${t}.c0`;
+          const hr1 = `act.k_heads.t${t}.c1`;
+          kHead[t][0] = rotated[0];
+          kHead[t][1] = rotated[1];
+          put(hr0, rotated[0], 'intermediate', [r0, r1]);
+          put(hr1, rotated[1], 'intermediate', [r0, r1]);
+          refs.kNorm[t][0] = r0;
+          refs.kNorm[t][1] = r1;
+          refs.kHead[t][0] = hr0;
+          refs.kHead[t][1] = hr1;
+        }
+
+        // rotate v not applied in qwen3 rope path for this architecture
+        const vid0 = `act.v_norm.t${t}.c0`;
+        const vid1 = `act.v_norm.t${t}.c1`;
+        vNorm[t][0] = vRaw[t][0];
+        vNorm[t][1] = vRaw[t][1];
+        put(vid0, vNorm[t][0], 'intermediate', [refs.vRaw[t][0]]);
+        put(vid1, vNorm[t][1], 'intermediate', [refs.vRaw[t][1]]);
+      }
+
+      // full sequence attention matrices for visualization and full-sequence forward path
+      const attnScoreByHead = Array.from({ length: ATTN_HEADS }, () =>
+        Array.from({ length: n }, () => Array(n).fill(NEG_INF)),
+      );
+      const attnWeightByHead = Array.from({ length: ATTN_HEADS }, () =>
+        Array.from({ length: n }, () => Array(n).fill(0)),
+      );
+
+      for (let q = scoreStart; q < n; q++) {
+        const qScoreParents = [];
+        for (let h = 0; h < ATTN_HEADS; h++) {
+          const qBase = h * 2;
+          qScoreParents.push(`act.q_heads.t${q}.c${qBase}`, `act.q_heads.t${q}.c${qBase + 1}`);
+        }
+
+        for (let k = 0; k < n; k++) {
+          for (let h = 0; h < ATTN_HEADS; h++) {
+            const qBase = h * 2;
+            const raw = k <= q
+              ? (qHead[q][qBase] * kHead[k][0] + qHead[q][qBase + 1] * kHead[k][1]) / Math.SQRT2
+              : NEG_INF;
+            attnScoreByHead[h][q][k] = raw;
+            const sid = `act.attn_score.h${h}.q${q}.t${k}`;
+            refs.attnScoreByHead[h][q][k] = sid;
+            put(sid, raw, 'intermediate', [qScoreParents, `act.k_heads.t${k}.c0`, `act.k_heads.t${k}.c1`]);
+          }
+        }
+
+        for (let h = 0; h < ATTN_HEADS; h++) {
+          const row = softmaxVec(attnScoreByHead[h][q]);
+          const rowScoreRefs = Array.from({ length: n }, (_, k) => `act.attn_score.h${h}.q${q}.t${k}`);
+
+          for (let k = 0; k < n; k++) {
+            attnWeightByHead[h][q][k] = row[k];
+            const wid = `act.attn_weight.h${h}.q${q}.t${k}`;
+            refs.attnWeightByHead[h][q][k] = wid;
+            put(wid, row[k], 'intermediate', rowScoreRefs);
+          }
+        }
+
+        if (q >= layerStart) {
+          for (let d = 0; d < MODEL_DIM; d++) {
+            let s = 0;
+            const outParents = [];
+            for (let h = 0; h < ATTN_HEADS; h++) {
+              const b = h * 2;
+              const w0 = PARAMS.o_proj[d][b];
+              const w1 = PARAMS.o_proj[d][b + 1];
+              outParents.push(`param.o_proj.r${d}.c${b}`, `param.o_proj.r${d}.c${b + 1}`);
+              for (let k = 0; k < n; k++) {
+                const w = attnWeightByHead[h][q][k];
+                s += w * (vNorm[k][0] * w0 + vNorm[k][1] * w1);
+                outParents.push(`act.attn_weight.h${h}.q${q}.t${k}`, `act.v_norm.t${k}.c0`, `act.v_norm.t${k}.c1`);
+              }
+            }
+            const outId = `act.attn_out_matrix.t${q}.c${d}`;
+            attnOutMatrix[q][d] = s;
+            if (materializeOutputSpan(q)) {
+              refs.attnOutMatrix[q][d] = outId;
+              put(outId, s, 'intermediate', Array.from(new Set(outParents)));
+            }
+          }
+        }
+      }
+
+      for (let t = layerStart; t < n; t++) {
+        for (let i = 0; i < MODEL_DIM; i++) {
+          const v = embedded[t][i] + attnOutMatrix[t][i];
+          residual1[t][i] = v;
+          const id = `act.residual1.t${t}.c${i}`;
+          if (materializeOutputSpan(t)) {
+            refs.residual1[t][i] = id;
+            put(id, v, 'intermediate', [`act.embedded.t${t}.c${i}`, `act.attn_out_matrix.t${t}.c${i}`]);
+          }
+        }
+
+        const finalNorm = rmsNorm(residual1[t], PARAMS.post_attn_norm);
+        for (let i = 0; i < MODEL_DIM; i++) {
+          const id = `act.post_normed.t${t}.c${i}`;
+          postNormed[t][i] = finalNorm[i];
+          if (materializeOutputSpan(t)) {
+            refs.postNormed[t][i] = id;
+            put(id, finalNorm[i], 'intermediate', [
+              `act.residual1.t${t}.c0`,
+              `act.residual1.t${t}.c1`,
+              `act.residual1.t${t}.c2`,
+              `param.post_attn_norm.c${i}`,
+            ]);
+          }
+        }
+
+        for (let i = 0; i < 2; i++) {
+          const gv = PARAMS.gate_proj[i][0] * finalNorm[0] + PARAMS.gate_proj[i][1] * finalNorm[1] + PARAMS.gate_proj[i][2] * finalNorm[2];
+          const uv = PARAMS.up_proj[i][0] * finalNorm[0] + PARAMS.up_proj[i][1] * finalNorm[1] + PARAMS.up_proj[i][2] * finalNorm[2];
+          gate[t][i] = gv;
+          up[t][i] = uv;
+
+          const gid = `act.gate.t${t}.c${i}`;
+          const uid = `act.up.t${t}.c${i}`;
+          if (materializeOutputSpan(t)) {
+            refs.gate[t][i] = gid;
+            refs.up[t][i] = uid;
+            put(gid, gv, 'intermediate', [
+              `act.post_normed.t${t}.c0`,
+              `act.post_normed.t${t}.c1`,
+              `act.post_normed.t${t}.c2`,
+              `param.gate_proj.r${i}.c0`,
+              `param.gate_proj.r${i}.c1`,
+              `param.gate_proj.r${i}.c2`,
+            ]);
+            put(uid, uv, 'intermediate', [
+              `act.post_normed.t${t}.c0`,
+              `act.post_normed.t${t}.c1`,
+              `act.post_normed.t${t}.c2`,
+              `param.up_proj.r${i}.c0`,
+              `param.up_proj.r${i}.c1`,
+              `param.up_proj.r${i}.c2`,
+            ]);
+          }
+        }
+
+        for (let i = 0; i < 2; i++) {
+          const val = silu(gate[t][i]) * up[t][i];
+          siluMul[t][i] = val;
+          const sid = `act.silu_mul.t${t}.c${i}`;
+          if (materializeOutputSpan(t)) {
+            refs.siluMul[t][i] = sid;
+            put(sid, val, 'intermediate', [`act.gate.t${t}.c${i}`, `act.up.t${t}.c${i}`]);
+          }
+        }
+
+        for (let d = 0; d < MODEL_DIM; d++) {
+          const val = PARAMS.down_proj[d][0] * siluMul[t][0] + PARAMS.down_proj[d][1] * siluMul[t][1];
+          mlpOut[t][d] = val;
+          const id = `act.mlp_out.t${t}.c${d}`;
+          if (materializeOutputSpan(t)) {
+            refs.mlpOut[t][d] = id;
+            put(id, val, 'intermediate', [
+              `act.silu_mul.t${t}.c0`,
+              `act.silu_mul.t${t}.c1`,
+              `param.down_proj.r${d}.c0`,
+              `param.down_proj.r${d}.c1`,
+            ]);
+          }
+        }
+
+        for (let d = 0; d < MODEL_DIM; d++) {
+          const val = residual1[t][d] + mlpOut[t][d];
+          residual2[t][d] = val;
+          const id = `act.residual2.t${t}.c${d}`;
+          if (materializeOutputSpan(t)) {
+            refs.residual2[t][d] = id;
+            put(id, val, 'intermediate', [`act.residual1.t${t}.c${d}`, `act.mlp_out.t${t}.c${d}`]);
+          }
+        }
+
+        const finalNormedRow = rmsNorm(residual2[t], PARAMS.final_norm);
+        for (let d = 0; d < MODEL_DIM; d++) {
+          finalNormed[t][d] = finalNormedRow[d];
+          const id = `act.normed_out.t${t}.c${d}`;
+          if (materializeOutputSpan(t)) {
+            refs.finalNormed[t][d] = id;
+            put(id, finalNormedRow[d], 'intermediate', [
+              `act.residual2.t${t}.c0`,
+              `act.residual2.t${t}.c1`,
+              `act.residual2.t${t}.c2`,
+              `param.final_norm.c${d}`,
+            ]);
+          }
+        }
+      }
+
+      const logits = Array(VOCAB).fill(0);
+      const tokenLogits = Array.from({ length: n }, () => Array(VOCAB).fill(0));
+
+      for (let q = layerStart; q < n; q++) {
+        for (let d = 0; d < VOCAB; d++) {
+          const v =
+            finalNormed[q][0] * PARAMS.embed[d][0] +
+            finalNormed[q][1] * PARAMS.embed[d][1] +
+            finalNormed[q][2] * PARAMS.embed[d][2];
+          tokenLogits[q][d] = v;
+          // Only materialize logits for generated-token positions (t24..t34).
+          if (materializeOutputSpan(q)) {
+            const lid = `act.logits.t${q}.c${d}`;
+            refs.logitsPerToken[q][d] = lid;
+            put(lid, v, 'intermediate', [
+              `act.normed_out.t${q}.c0`,
+              `act.normed_out.t${q}.c1`,
+              `act.normed_out.t${q}.c2`,
+              `param.embed.r${d}.c0`,
+              `param.embed.r${d}.c1`,
+              `param.embed.r${d}.c2`,
+            ]);
+          }
+        }
+      }
+
+      for (let d = 0; d < VOCAB; d++) {
+        logits[d] = tokenLogits[qIndex][d];
+      }
+
+      // preserve only refs needed by renderer
+      return {
+        n,
+        qIndex,
+        logits,
+        tokenLogits,
+        finalNormedVals: finalNormed[qIndex],
+        tokens,
+        refs,
+        graph: g,
+        qIndex,
+      };
+    }
+
+    function argMax(values) {
       let idx = 0;
       let best = values[0];
-      for (let i = 1; i < values.length; i += 1) {
+      for (let i = 1; i < values.length; i++) {
         if (values[i] > best) {
           best = values[i];
           idx = i;
@@ -846,1023 +1126,769 @@
       return idx;
     }
 
-    function formatValue(v) {
-      if (!Number.isFinite(v)) {
-        return String(v);
-      }
-      const value = Object.is(v, -0) ? 0 : v;
-      if (value === 0) {
-        return "0";
-      }
-      const abs = Math.abs(value);
-      const sign = value >= 0 ? "+" : "-";
-      if (abs < 0.1) {
-        const expText = abs.toExponential(0);
-        const m = expText.match(/^(\d)e([+-]\d+)$/);
-        if (m) {
-          const mant = m[1];
-          const exp = Number(m[2]);
-          if (exp < 0 && -exp <= 9) {
-            return sign + mant + "f" + String(-exp);
-          }
-        }
-        return "+0.0";
-      }
-      if (abs >= 1000) {
-        return sign + abs.toExponential(0).replace("e+", "e");
-      }
-      if (abs >= 100) {
-        const rounded = Math.round(abs);
-        if (rounded >= 1000) {
-          return sign + rounded.toExponential(0).replace("e+", "e");
-        }
-        return sign + String(rounded);
-      }
-      if (Number.isInteger(abs)) {
-        return sign + String(abs);
-      }
-      return sign + abs.toFixed(1);
+    function renderCell(id, value, cat) {
+      const td = document.createElement('td');
+      const isZero = value === 0 || Object.is(value, -0);
+      const text = isZero ? '0' : formatCell(value);
+      td.className = `cell ${cat || 'intermediate'}`;
+      if (isZero) td.classList.add('zero');
+      td.dataset.cellId = id;
+      const span = document.createElement('span');
+      span.className = 'value';
+      span.textContent = value === undefined || value === null ? '' : text;
+      td.appendChild(span);
+      td.addEventListener('click', () => onCellClick(id));
+      return td;
     }
 
-    function formatScalar(v) {
-      if (typeof v === "number") {
-        return formatValue(v);
+    function renderMatrix(title, rowIds, rowLabels, colLabels, fallbackCat) {
+      appState.visibleNodeIds = appState.visibleNodeIds || new Set();
+      const box = document.createElement('div');
+      box.className = 'matrix-box';
+      const t = document.createElement('div');
+      t.className = 'title';
+      t.textContent = title;
+      box.appendChild(t);
+
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      const hr = document.createElement('tr');
+      hr.appendChild(document.createElement('th')).textContent = '';
+      for (const c of colLabels) {
+        const th = document.createElement('th');
+        th.className = 'col-label';
+        th.textContent = c;
+        hr.appendChild(th);
       }
-      if (typeof v === "bigint") {
-        return formatValue(Number(v));
-      }
-      if (typeof v === "string" && /^[-+]?\d+(\.\d+)?$/.test(v)) {
-        return formatValue(Number(v));
-      }
-      return String(v);
-    }
+      thead.appendChild(hr);
+      table.appendChild(thead);
 
-    function formatFullInt(v) {
-      if (typeof v === "number" && Number.isFinite(v) && Number.isInteger(v)) {
-        return String(v);
-      }
-      if (typeof v === "string" && /^-?\d+$/.test(v)) {
-        return v;
-      }
-      return String(v);
-    }
-
-    function markExactZeroCell(td, textValue) {
-      if (textValue === "0") {
-        td.classList.add("exact-zero");
-      }
-    }
-
-    function encodeAddendsInternal(a, b) {
-      const aStr = String(a).padStart(10, "0");
-      const bStr = String(b).padStart(10, "0");
-      const aDigits = aStr.split("").map((c) => Number(c));
-      const bDigits = bStr.split("").map((c) => Number(c));
-      return [0]
-        .concat(aDigits.reverse())
-        .concat([0, 0])
-        .concat(bDigits.reverse())
-        .concat([0]);
-    }
-
-    function expectedOutputLittleEndian(a, b) {
-      const sum = (BigInt(a) + BigInt(b)).toString();
-      const rev = sum.split("").reverse().join("");
-      return rev.padEnd(OUTPUT_DIGITS, "0");
-    }
-
-    function decodeLittleEndianDigits(digits) {
-      const normal = digits.slice().reverse().join("").replace(/^0+(?=\d)/, "");
-      return normal.length === 0 ? "0" : normal;
-    }
-
-    function stackAttentionHeads(weightsByHead) {
-      const out = [];
-      for (let h = 0; h < weightsByHead.length; h += 1) {
-        for (let t = 0; t < weightsByHead[h].length; t += 1) {
-          out.push(weightsByHead[h][t].slice());
-        }
-      }
-      return out;
-    }
-
-    function forwardPass(tokens) {
-      const tLen = tokens.length;
-      const embedded = new Array(tLen);
-      const normed = new Array(tLen);
-      const q = new Array(tLen);
-      const k = new Array(tLen);
-      const v = new Array(tLen);
-      const qRope = new Array(tLen);
-      const kRope = new Array(tLen);
-      const qRopeHeads = new Array(tLen);
-      const kRopeHead = new Array(tLen);
-
-      for (let t = 0; t < tLen; t += 1) {
-        embedded[t] = WEIGHTS.embed[tokens[t]].slice();
-        normed[t] = rmsNorm(embedded[t], WEIGHTS.input_norm, EPS);
-
-        const qRaw = matVec(WEIGHTS.q_proj, normed[t]);
-        const kRaw = matVec(WEIGHTS.k_proj, normed[t]);
-        const vRaw = matVec(WEIGHTS.v_proj, normed[t]);
-
-        let qHeads = reshapeHeads(qRaw, ATTENTION_HEADS, HEAD_DIM);
-        let kHeads = reshapeHeads(kRaw, KEY_VALUE_HEADS, HEAD_DIM);
-        const vHeads = reshapeHeads(vRaw, KEY_VALUE_HEADS, HEAD_DIM);
-
-        qHeads = qHeads.map((h) => rmsNorm(h, WEIGHTS.q_norm, EPS));
-        kHeads = kHeads.map((h) => rmsNorm(h, WEIGHTS.k_norm, EPS));
-
-        q[t] = flattenHeads(qHeads);
-        k[t] = flattenHeads(kHeads);
-        v[t] = flattenHeads(vHeads);
-
-        const qRot = qHeads.map((h) => ropeRotate(h, t));
-        const kRot = kHeads.map((h) => ropeRotate(h, t));
-        qRope[t] = flattenHeads(qRot);
-        kRope[t] = flattenHeads(kRot);
-        qRopeHeads[t] = qRot.map((h) => h.slice());
-        kRopeHead[t] = kRot[0].slice();
-      }
-
-      const scale = 1.0 / Math.sqrt(HEAD_DIM);
-      const attnScores = Array.from({ length: ATTENTION_HEADS }, () =>
-        Array.from({ length: tLen }, () => new Array(tLen).fill(0.0))
-      );
-      const attnWeights = Array.from({ length: ATTENTION_HEADS }, () =>
-        Array.from({ length: tLen }, () => new Array(tLen).fill(0.0))
-      );
-
-      const attnCtx = new Array(tLen);
-      const attnOut = new Array(tLen);
-      const residual1 = new Array(tLen);
-      const postNormed = new Array(tLen);
-      const gate = new Array(tLen);
-      const up = new Array(tLen);
-      const siluGate = new Array(tLen);
-      const swiglu = new Array(tLen);
-      const mlpOut = new Array(tLen);
-      const residual2 = new Array(tLen);
-      const finalNormed = new Array(tLen);
-      const logits = new Array(tLen);
-
-      for (let t = 0; t < tLen; t += 1) {
-        const ctxHeads = [];
-        for (let h = 0; h < ATTENTION_HEADS; h += 1) {
-          const scoreRow = [];
-          for (let j = 0; j <= t; j += 1) {
-            const score = dot(qRopeHeads[t][h], kRopeHead[j]) * scale;
-            scoreRow.push(score);
-            attnScores[h][t][j] = score;
-          }
-          const probs = softmax(scoreRow);
-          const ctx = [0.0, 0.0];
-          for (let j = 0; j <= t; j += 1) {
-            attnWeights[h][t][j] = probs[j];
-            ctx[0] += probs[j] * v[j][0];
-            ctx[1] += probs[j] * v[j][1];
-          }
-          ctxHeads.push(ctx);
-        }
-
-        const flatCtx = flattenHeads(ctxHeads);
-        attnCtx[t] = flatCtx;
-        attnOut[t] = matVec(WEIGHTS.o_proj, flatCtx);
-
-        residual1[t] = addVec(embedded[t], attnOut[t]);
-        postNormed[t] = rmsNorm(residual1[t], WEIGHTS.post_attn_norm, EPS);
-        gate[t] = matVec(WEIGHTS.gate_proj, postNormed[t]);
-        up[t] = matVec(WEIGHTS.up_proj, postNormed[t]);
-        siluGate[t] = gate[t].map((x) => silu(x));
-        swiglu[t] = mulVec(siluGate[t], up[t]);
-        mlpOut[t] = matVec(WEIGHTS.down_proj, swiglu[t]);
-        residual2[t] = addVec(residual1[t], mlpOut[t]);
-        finalNormed[t] = rmsNorm(residual2[t], WEIGHTS.final_norm, EPS);
-
-        const rowLogits = new Array(VOCAB_SIZE);
-        for (let d = 0; d < VOCAB_SIZE; d += 1) {
-          rowLogits[d] = dot(finalNormed[t], WEIGHTS.embed[d]);
-        }
-        logits[t] = rowLogits;
-      }
-
-      const last = tLen - 1;
-      const trace = {
-        embedded: embedded[last].slice(),
-        normed: normed[last].slice(),
-        Q: q[last].slice(),
-        K: k[last].slice(),
-        V: v[last].slice(),
-        q_heads_rope: qRope[last].slice(),
-        attn_weight_last: attnWeights.map((h) => h[last].slice()),
-        attn_out: attnOut[last].slice(),
-        residual1: residual1[last].slice(),
-        post_normed: postNormed[last].slice(),
-        gate: gate[last].slice(),
-        up: up[last].slice(),
-        silu_mul_up: swiglu[last].slice(),
-        mlp_out: mlpOut[last].slice(),
-        residual2: residual2[last].slice(),
-        final_normed: finalNormed[last].slice(),
-        logits: logits[last].slice()
-      };
-
-      return {
-        logits,
-        seq: {
-          embedded,
-          normed,
-          q,
-          k,
-          v,
-          q_rope: qRope,
-          k_rope: kRope,
-          attn_scores: attnScores,
-          attn_weights: attnWeights,
-          attn_ctx: attnCtx,
-          attn_out: attnOut,
-          residual1,
-          post_normed: postNormed,
-          gate,
-          up,
-          silu_gate: siluGate,
-          swiglu,
-          mlp_out: mlpOut,
-          residual2,
-          final_normed: finalNormed
-        },
-        trace
-      };
-    }
-
-    function runModel(a, b) {
-      const inputTokens = encodeAddendsInternal(a, b);
-      const seq = inputTokens.slice();
-      for (let i = 0; i < OUTPUT_DIGITS; i += 1) {
-        const pass = forwardPass(seq);
-        const next = argmax(pass.logits[pass.logits.length - 1]);
-        seq.push(next);
-      }
-      const outputTokens = seq.slice(inputTokens.length);
-      const finalPass = forwardPass(seq);
-      return {
-        inputTokens,
-        outputTokens,
-        fullTokens: seq,
-        pass: finalPass
-      };
-    }
-
-    function buildProvenance(run) {
-      const map = new Map();
-      const seq = run.pass.seq;
-      const tokens = run.fullTokens;
-      const tLen = tokens.length;
-      const last = tLen - 1;
-
-      fillRootTable(map, TABLE_IDS.w_embed, WEIGHTS.embed.length, WEIGHTS.embed[0].length);
-      fillRootTable(map, TABLE_IDS.w_input_norm, 1, WEIGHTS.input_norm.length);
-      fillRootTable(map, TABLE_IDS.w_q_proj, WEIGHTS.q_proj.length, WEIGHTS.q_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_k_proj, WEIGHTS.k_proj.length, WEIGHTS.k_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_v_proj, WEIGHTS.v_proj.length, WEIGHTS.v_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_q_norm, 1, WEIGHTS.q_norm.length);
-      fillRootTable(map, TABLE_IDS.w_k_norm, 1, WEIGHTS.k_norm.length);
-      fillRootTable(map, TABLE_IDS.w_o_proj, WEIGHTS.o_proj.length, WEIGHTS.o_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_post_attn_norm, 1, WEIGHTS.post_attn_norm.length);
-      fillRootTable(map, TABLE_IDS.w_gate_proj, WEIGHTS.gate_proj.length, WEIGHTS.gate_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_up_proj, WEIGHTS.up_proj.length, WEIGHTS.up_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_down_proj, WEIGHTS.down_proj.length, WEIGHTS.down_proj[0].length);
-      fillRootTable(map, TABLE_IDS.w_final_norm, 1, WEIGHTS.final_norm.length);
-      fillRootTable(map, TABLE_IDS.arch_pos_q, 2, tLen);
-      fillRootTable(map, TABLE_IDS.arch_pos_k, 2, tLen);
-
-      for (let t = 0; t < tLen; t += 1) {
-        const tok = tokens[t];
-        for (let d = 0; d < MODEL_DIM; d += 1) {
-          const parents = [];
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.w_embed, tok, k));
-          }
-          parents.push(cellId(TABLE_IDS.w_input_norm, 0, d));
-          setParents(map, cellId(TABLE_IDS.arch_hidden_top, d, t), parents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        for (let qIdx = 0; qIdx < ATTENTION_HEADS * HEAD_DIM; qIdx += 1) {
-          const head = Math.floor(qIdx / HEAD_DIM);
-          const dim = qIdx % HEAD_DIM;
-          const parents = [];
-          for (let r = 2 * head; r <= 2 * head + 1; r += 1) {
-            for (let k = 0; k < MODEL_DIM; k += 1) {
-              parents.push(cellId(TABLE_IDS.w_q_proj, r, k));
-            }
-          }
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
-          }
-          parents.push(cellId(TABLE_IDS.w_q_norm, 0, dim));
-          setParents(map, cellId(TABLE_IDS.arch_query_states, qIdx, t), parents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        for (let kIdx = 0; kIdx < HEAD_DIM; kIdx += 1) {
-          const parents = [];
-          for (let r = 0; r < HEAD_DIM; r += 1) {
-            for (let k = 0; k < MODEL_DIM; k += 1) {
-              parents.push(cellId(TABLE_IDS.w_k_proj, r, k));
-            }
-          }
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
-          }
-          parents.push(cellId(TABLE_IDS.w_k_norm, 0, kIdx));
-          setParents(map, cellId(TABLE_IDS.arch_key_states, kIdx, t), parents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        for (let vIdx = 0; vIdx < HEAD_DIM; vIdx += 1) {
-          const parents = [];
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.w_v_proj, vIdx, k));
-            parents.push(cellId(TABLE_IDS.arch_hidden_top, k, t));
-          }
-          setParents(map, cellId(TABLE_IDS.arch_value_states, vIdx, t), parents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        for (let j = 0; j < tLen; j += 1) {
-          const parents = [
-            cellId(TABLE_IDS.arch_query_states, 0, t),
-            cellId(TABLE_IDS.arch_query_states, 1, t),
-            cellId(TABLE_IDS.arch_key_states, 0, j),
-            cellId(TABLE_IDS.arch_key_states, 1, j),
-            cellId(TABLE_IDS.arch_pos_q, 0, t),
-            cellId(TABLE_IDS.arch_pos_q, 1, t),
-            cellId(TABLE_IDS.arch_pos_k, 0, j),
-            cellId(TABLE_IDS.arch_pos_k, 1, j)
-          ];
-          setParents(map, cellId(TABLE_IDS.arch_attn_score_h0, t, j), parents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        const rowParents = [];
-        for (let k = 0; k < tLen; k += 1) {
-          rowParents.push(cellId(TABLE_IDS.arch_attn_score_h0, t, k));
-        }
-        for (let j = 0; j < tLen; j += 1) {
-          setParents(map, cellId(TABLE_IDS.arch_attn_weight_h0, t, j), rowParents);
-        }
-      }
-
-      for (let t = 0; t < tLen; t += 1) {
-        for (let d = 0; d < MODEL_DIM; d += 1) {
-          const parents = [];
-          for (let comp = 0; comp < ATTENTION_HEADS * HEAD_DIM; comp += 1) {
-            const head = Math.floor(comp / HEAD_DIM);
-            const dim = comp % HEAD_DIM;
-            parents.push(cellId(TABLE_IDS.w_o_proj, d, comp));
-            for (let j = 0; j <= t; j += 1) {
-              if (head === 0) {
-                parents.push(cellId(TABLE_IDS.arch_attn_weight_h0, t, j));
-              } else if (t === last) {
-                parents.push(cellId(TABLE_IDS.tr_attn_weight, head, j));
-              }
-              parents.push(cellId(TABLE_IDS.arch_value_states, dim, j));
-            }
-          }
-          setParents(map, cellId(TABLE_IDS.arch_hidden_bottom, d, t), parents);
-        }
-      }
-
-      const tokLast = tokens[last];
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        setParents(map, cellId(TABLE_IDS.tr_embedded, 0, d), [
-          cellId(TABLE_IDS.w_embed, tokLast, d)
-        ]);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        const parents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_embedded, 0, k));
-        }
-        parents.push(cellId(TABLE_IDS.w_input_norm, 0, d));
-        setParents(map, cellId(TABLE_IDS.tr_normed, 0, d), parents);
-      }
-
-      for (let qIdx = 0; qIdx < ATTENTION_HEADS * HEAD_DIM; qIdx += 1) {
-        const head = Math.floor(qIdx / HEAD_DIM);
-        const dim = qIdx % HEAD_DIM;
-        const parents = [];
-        for (let r = 2 * head; r <= 2 * head + 1; r += 1) {
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.w_q_proj, r, k));
-          }
-        }
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
-        }
-        parents.push(cellId(TABLE_IDS.w_q_norm, 0, dim));
-        setParents(map, cellId(TABLE_IDS.tr_Q, 0, qIdx), parents);
-      }
-
-      for (let kIdx = 0; kIdx < HEAD_DIM; kIdx += 1) {
-        const parents = [];
-        for (let r = 0; r < HEAD_DIM; r += 1) {
-          for (let k = 0; k < MODEL_DIM; k += 1) {
-            parents.push(cellId(TABLE_IDS.w_k_proj, r, k));
-          }
-        }
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
-        }
-        parents.push(cellId(TABLE_IDS.w_k_norm, 0, kIdx));
-        setParents(map, cellId(TABLE_IDS.tr_K, 0, kIdx), parents);
-      }
-
-      for (let vIdx = 0; vIdx < HEAD_DIM; vIdx += 1) {
-        const parents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.w_v_proj, vIdx, k));
-          parents.push(cellId(TABLE_IDS.tr_normed, 0, k));
-        }
-        setParents(map, cellId(TABLE_IDS.tr_V, 0, vIdx), parents);
-      }
-
-      for (let idx = 0; idx < ATTENTION_HEADS * HEAD_DIM; idx += 1) {
-        const head = Math.floor(idx / HEAD_DIM);
-        const pairBase = head * HEAD_DIM;
-        const parents = [
-          cellId(TABLE_IDS.tr_Q, 0, pairBase),
-          cellId(TABLE_IDS.tr_Q, 0, pairBase + 1),
-          cellId(TABLE_IDS.arch_pos_q, 0, last),
-          cellId(TABLE_IDS.arch_pos_q, 1, last)
-        ];
-        setParents(map, cellId(TABLE_IDS.tr_q_heads_rope, 0, idx), parents);
-      }
-
-      for (let h = 0; h < ATTENTION_HEADS; h += 1) {
-        const rowParents = [];
-        if (h === 0) {
-          for (let k = 0; k <= last; k += 1) {
-            rowParents.push(cellId(TABLE_IDS.arch_attn_score_h0, last, k));
-          }
-        } else {
-          const qBase = h * HEAD_DIM;
-          rowParents.push(cellId(TABLE_IDS.arch_query_states, qBase, last));
-          rowParents.push(cellId(TABLE_IDS.arch_query_states, qBase + 1, last));
-          rowParents.push(cellId(TABLE_IDS.arch_pos_q, 0, last));
-          rowParents.push(cellId(TABLE_IDS.arch_pos_q, 1, last));
-          for (let k = 0; k <= last; k += 1) {
-            rowParents.push(cellId(TABLE_IDS.arch_key_states, 0, k));
-            rowParents.push(cellId(TABLE_IDS.arch_key_states, 1, k));
-            rowParents.push(cellId(TABLE_IDS.arch_pos_k, 0, k));
-            rowParents.push(cellId(TABLE_IDS.arch_pos_k, 1, k));
-          }
-        }
-        for (let j = 0; j <= last; j += 1) {
-          setParents(map, cellId(TABLE_IDS.tr_attn_weight, h, j), rowParents);
-        }
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        const parents = [];
-        for (let comp = 0; comp < ATTENTION_HEADS * HEAD_DIM; comp += 1) {
-          const h = Math.floor(comp / HEAD_DIM);
-          const dim = comp % HEAD_DIM;
-          parents.push(cellId(TABLE_IDS.w_o_proj, d, comp));
-          for (let j = 0; j <= last; j += 1) {
-            parents.push(cellId(TABLE_IDS.tr_attn_weight, h, j));
-            parents.push(cellId(TABLE_IDS.arch_value_states, dim, j));
-          }
-        }
-        setParents(map, cellId(TABLE_IDS.tr_attn_out, 0, d), parents);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        setParents(map, cellId(TABLE_IDS.tr_residual1, 0, d), [
-          cellId(TABLE_IDS.tr_embedded, 0, d),
-          cellId(TABLE_IDS.tr_attn_out, 0, d)
-        ]);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        const parents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_residual1, 0, k));
-        }
-        parents.push(cellId(TABLE_IDS.w_post_attn_norm, 0, d));
-        setParents(map, cellId(TABLE_IDS.tr_post_normed, 0, d), parents);
-      }
-
-      for (let row = 0; row < INTERMEDIATE_SIZE; row += 1) {
-        const gateParents = [];
-        const upParents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          gateParents.push(cellId(TABLE_IDS.tr_post_normed, 0, k));
-          gateParents.push(cellId(TABLE_IDS.w_gate_proj, row, k));
-          upParents.push(cellId(TABLE_IDS.tr_post_normed, 0, k));
-          upParents.push(cellId(TABLE_IDS.w_up_proj, row, k));
-        }
-        setParents(map, cellId(TABLE_IDS.tr_gate, 0, row), gateParents);
-        setParents(map, cellId(TABLE_IDS.tr_up, 0, row), upParents);
-      }
-
-      for (let i = 0; i < INTERMEDIATE_SIZE; i += 1) {
-        setParents(map, cellId(TABLE_IDS.tr_silu_mul_up, 0, i), [
-          cellId(TABLE_IDS.tr_gate, 0, i),
-          cellId(TABLE_IDS.tr_up, 0, i)
-        ]);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        const parents = [];
-        for (let k = 0; k < INTERMEDIATE_SIZE; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_silu_mul_up, 0, k));
-          parents.push(cellId(TABLE_IDS.w_down_proj, d, k));
-        }
-        setParents(map, cellId(TABLE_IDS.tr_mlp_out, 0, d), parents);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        setParents(map, cellId(TABLE_IDS.tr_residual2, 0, d), [
-          cellId(TABLE_IDS.tr_residual1, 0, d),
-          cellId(TABLE_IDS.tr_mlp_out, 0, d)
-        ]);
-      }
-
-      for (let d = 0; d < MODEL_DIM; d += 1) {
-        const parents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_residual2, 0, k));
-        }
-        parents.push(cellId(TABLE_IDS.w_final_norm, 0, d));
-        setParents(map, cellId(TABLE_IDS.tr_final_normed, 0, d), parents);
-      }
-
-      for (let digit = 0; digit < VOCAB_SIZE; digit += 1) {
-        const parents = [];
-        for (let k = 0; k < MODEL_DIM; k += 1) {
-          parents.push(cellId(TABLE_IDS.tr_final_normed, 0, k));
-          parents.push(cellId(TABLE_IDS.w_embed, digit, k));
-        }
-        setParents(map, cellId(TABLE_IDS.tr_logits, 0, digit), parents);
-      }
-
-      return map;
-    }
-
-    function makeMatrix(name, matrix, klass, opts) {
-      const options = opts || {};
-      const rows = matrix.length;
-      const cols = matrix[0].length;
-      const rowLabels = options.rowLabels || Array.from({ length: rows }, (_, i) => "r" + i);
-      const colLabels = options.colLabels || Array.from({ length: cols }, (_, i) => "c" + i);
-      const tableId = options.tableId || "auto_" + String(AUTO_TABLE_COUNTER++);
-
-      const wrap = document.createElement("div");
-      wrap.className = options.dense ? "matrix dense" : "matrix";
-      wrap.dataset.tableId = tableId;
-
-      const table = document.createElement("table");
-      table.className = "sheet";
-
-      const titleRow = document.createElement("tr");
-      const titleCell = document.createElement("th");
-      titleCell.colSpan = cols + 1;
-      titleCell.className = "title";
-      titleCell.textContent = name + " " + rows + "x" + cols;
-      titleRow.appendChild(titleCell);
-      table.appendChild(titleRow);
-
-      const headerRow = document.createElement("tr");
-      const blank = document.createElement("th");
-      blank.textContent = "";
-      headerRow.appendChild(blank);
-      for (let c = 0; c < cols; c += 1) {
-        const th = document.createElement("th");
-        th.textContent = colLabels[c];
-        headerRow.appendChild(th);
-      }
-      table.appendChild(headerRow);
-
-      for (let r = 0; r < rows; r += 1) {
-        const tr = document.createElement("tr");
-        const rh = document.createElement("th");
+      const tb = document.createElement('tbody');
+      for (let r = 0; r < rowIds.length; r++) {
+        const tr = document.createElement('tr');
+        const rh = document.createElement('th');
+        rh.className = 'row-label';
         rh.textContent = rowLabels[r];
         tr.appendChild(rh);
-        for (let c = 0; c < cols; c += 1) {
-          const td = document.createElement("td");
-          td.className = klass;
-          const shown = formatValue(matrix[r][c]);
-          td.textContent = shown;
-          markExactZeroCell(td, shown);
-          registerCellElement(tableId, r, c, td);
-          tr.appendChild(td);
+        for (let c = 0; c < rowIds[r].length; c++) {
+          const id = rowIds[r][c];
+          appState.visibleNodeIds.add(id);
+          const n = appState.nodes.get(id);
+          const v = n ? n.value : 0;
+          const cat = n && n.category !== 'hidden' ? n.category : fallbackCat || 'intermediate';
+          tr.appendChild(renderCell(id, v, cat));
         }
-        table.appendChild(tr);
+        tb.appendChild(tr);
+      }
+      table.appendChild(tb);
+      const scroller = document.createElement('div');
+      scroller.className = 'matrix-scroll';
+      scroller.appendChild(table);
+      box.appendChild(scroller);
+      return box;
+    }
+
+    function renderHeadMatricesSideBySide(title, refsByHead, rowLabels, colLabels, fallbackCat) {
+      const box = document.createElement('div');
+      box.className = 'matrix-box';
+      const t = document.createElement('div');
+      t.className = 'title';
+      t.textContent = title;
+      box.appendChild(t);
+
+      const scroller = document.createElement('div');
+      scroller.className = 'matrix-scroll';
+      scroller.style.padding = '3px';
+      scroller.style.maxWidth = 'none';
+
+      const stack = document.createElement('div');
+      stack.className = 'head-stack';
+
+      for (let h = 0; h < refsByHead.length; h++) {
+        const panel = document.createElement('div');
+        panel.className = 'head-panel';
+
+        const label = document.createElement('div');
+        label.className = 'head-panel-title';
+        label.textContent = `h${h}`;
+        panel.appendChild(label);
+
+        const table = document.createElement('table');
+        table.style.width = 'max-content';
+        table.style.tableLayout = 'fixed';
+
+        const thead = document.createElement('thead');
+        const hr = document.createElement('tr');
+        hr.appendChild(document.createElement('th')).textContent = '';
+        for (const c of colLabels) {
+          const th = document.createElement('th');
+          th.className = 'col-label';
+          th.textContent = c;
+          hr.appendChild(th);
+        }
+        thead.appendChild(hr);
+        table.appendChild(thead);
+
+        const tb = document.createElement('tbody');
+        const rows = refsByHead[h];
+        for (let r = 0; r < rows.length; r++) {
+          const tr = document.createElement('tr');
+          const rh = document.createElement('th');
+          rh.className = 'row-label';
+          rh.textContent = rowLabels[r];
+          tr.appendChild(rh);
+          for (let c = 0; c < rows[r].length; c++) {
+            const id = rows[r][c];
+            appState.visibleNodeIds.add(id);
+            const n = appState.nodes.get(id);
+            const v = n ? n.value : 0;
+            const cat = n && n.category !== 'hidden' ? n.category : fallbackCat || 'intermediate';
+            tr.appendChild(renderCell(id, v, cat));
+          }
+          tb.appendChild(tr);
+        }
+        table.appendChild(tb);
+        panel.appendChild(table);
+        stack.appendChild(panel);
       }
 
-      wrap.appendChild(table);
-      return wrap;
+      scroller.appendChild(stack);
+      box.appendChild(scroller);
+      return box;
     }
 
-    function makeVector(name, values, klass, opts) {
-      return makeMatrix(name, [values], klass, opts);
+    function renderWeights() {
+      weightsColumn.innerHTML = '';
+      appState.visibleWeightNodeIds = appState.visibleWeightNodeIds || new Set();
+      appState.visibleWeightNodeIds.clear();
+
+      const matrices = WEIGHT_MATRIX_SPECS.map(([prefix, title, rows, cols]) => [
+        title,
+        makeMatrixRefs(`param.${prefix}`, rows, cols),
+      ]);
+
+      for (const [title, refs] of matrices) {
+        const rows = Array.from({ length: refs.length }, (_, r) => `r${r}`);
+        const cols = Array.from({ length: refs[0].length }, (_, c) => `c${c}`);
+        weightsColumn.appendChild(renderMatrix(title, refs, rows, cols, 'param'));
+        for (const row of refs) {
+          for (const id of row) {
+            appState.visibleWeightNodeIds.add(id);
+          }
+        }
+      }
     }
 
-    function renderTopBar() {
-      const holder = document.getElementById("topBar");
-      holder.innerHTML = "";
-
-      const table = document.createElement("table");
-      table.className = "sheet";
-
-      const head = document.createElement("tr");
-      ["a", "b", "compute", "random"].forEach((label) => {
-        const th = document.createElement("th");
-        th.textContent = label;
-        head.appendChild(th);
-      });
-      table.appendChild(head);
-
-      const row = document.createElement("tr");
-      const aTd = document.createElement("td");
-      aTd.innerHTML = '<input id="aInput" type="number" min="0" max="9999999999" step="1" value="5">';
-      row.appendChild(aTd);
-      const bTd = document.createElement("td");
-      bTd.innerHTML = '<input id="bInput" type="number" min="0" max="9999999999" step="1" value="7">';
-      row.appendChild(bTd);
-      const cTd = document.createElement("td");
-      cTd.innerHTML = '<button id="computeBtn">compute</button>';
-      row.appendChild(cTd);
-      const rTd = document.createElement("td");
-      rTd.innerHTML = '<button id="randomBtn">random</button>';
-      row.appendChild(rTd);
-      table.appendChild(row);
-
-      holder.appendChild(table);
-    }
-
-    function renderResult(modelValue, expectedValue, ok) {
-      const holder = document.getElementById("resultBar");
-      holder.innerHTML = "";
-      const table = document.createElement("table");
-      table.className = "sheet";
+    function renderFlow(result, generationSteps) {
+      flowColumn.innerHTML = '';
+      const n = result.n;
+      const attnScoreByHeadRefs = Array.from(
+        { length: ATTN_HEADS },
+        () => Array.from({ length: n }, (_, q) => Array.from({ length: n }, (_, k) => '')),
+      );
+      const attnWeightByHeadRefs = Array.from(
+        { length: ATTN_HEADS },
+        () => Array.from({ length: n }, (_, q) => Array.from({ length: n }, (_, k) => '')),
+      );
+      for (let h = 0; h < ATTN_HEADS; h++) {
+        for (let q = 0; q < n; q++) {
+          for (let k = 0; k < n; k++) {
+            attnScoreByHeadRefs[h][q][k] = `act.attn_score.h${h}.q${q}.t${k}`;
+            attnWeightByHeadRefs[h][q][k] = `act.attn_weight.h${h}.q${q}.t${k}`;
+          }
+        }
+      }
+      const logitsTokenIndices = Array.from({ length: Math.max(0, n - INPUT_TOKENS) }, (_, i) => i + INPUT_TOKENS);
+      const logitsTokenLabels = logitsTokenIndices.map((idx) => `t${idx}`);
+      const actLogitsPerTokenRefs = Array.from({ length: VOCAB }, (_, c) =>
+        logitsTokenIndices.map((q) => `act.logits.t${q}.c${c}`),
+      );
+      const embeddedRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.embedded.t${tt}.c${c}`));
+      const normedRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.normed.t${tt}.c${c}`));
+      const qRawRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 8 }, (_, c) => `act.q_raw.t${tt}.c${c}`));
+      const kRawRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.k_raw.t${tt}.c${c}`));
+      const vRawRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.v_raw.t${tt}.c${c}`));
+      const qNormRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 8 }, (_, c) => `act.q_norm.t${tt}.c${c}`));
+      const kNormRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.k_norm.t${tt}.c${c}`));
+      const vNormRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.v_norm.t${tt}.c${c}`));
+      const attnOutRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.attn_out_matrix.t${tt}.c${c}`));
+      const residual1Refs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.residual1.t${tt}.c${c}`));
+      const postNormedRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.post_normed.t${tt}.c${c}`));
+      const gateRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.gate.t${tt}.c${c}`));
+      const upRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.up.t${tt}.c${c}`));
+      const siluMulRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.silu_mul.t${tt}.c${c}`));
+      const mlpOutRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.mlp_out.t${tt}.c${c}`));
+      const residual2Refs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.residual2.t${tt}.c${c}`));
+      const finalNormedRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: MODEL_DIM }, (_, c) => `act.normed_out.t${tt}.c${c}`));
+      const genSteps = generationSteps || [];
+      const generationArgmaxRefs = Array.from({ length: genSteps.length }, (_, o) => `act.generation_argmax.o${o}`);
+      const genLogitsCols = Array.from({ length: VOCAB }, (_, c) => `c${c}`);
+      const outLabels = Array.from({ length: genSteps.length }, (_, i) => `o${i}`);
+      const tokenLabels = Array.from({ length: n }, (_, i) => `t${i}`);
+      const qHeadRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 8 }, (_, c) => `act.q_heads.t${tt}.c${c}`));
+      const kHeadRefs = Array.from({ length: n }, (_, tt) => Array.from({ length: 2 }, (_, c) => `act.k_heads.t${tt}.c${c}`));
+      const vNormByHeadRefs = Array.from({ length: ATTN_HEADS }, () =>
+        Array.from({ length: 2 }, (_, c) => Array.from({ length: n }, (_, t) => `act.v_norm.t${t}.c${c}`)),
+      );
+      const transposeRefs = (arr) => {
+        if (!arr.length || !arr[0].length) return [];
+        const rows = arr.length;
+        const cols = arr[0].length;
+        return Array.from({ length: cols }, (_, c) => Array.from({ length: rows }, (_, r) => arr[r][c]));
+      };
+      const selectOutputTokenRows = (arr) => logitsTokenIndices.map((idx) => arr[idx]);
+      const dim8Labels = Array.from({ length: 8 }, (_, i) => `c${i}`);
+      const dim2Labels = ['c0', 'c1'];
 
       const rows = [
-        ["model", formatFullInt(modelValue), "output"],
-        ["expected", formatFullInt(expectedValue), "output"],
-        ["check", ok ? "1" : "0", ok ? "ok" : "bad"]
+        {
+          title: 'generation_argmax 1x11',
+          refs: [generationArgmaxRefs],
+          rows: ['r0'],
+          cols: outLabels,
+        },
+        {
+          title: `act.logits.t 10x${logitsTokenIndices.length}`,
+          refs: actLogitsPerTokenRefs,
+          rows: genLogitsCols,
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `normed_out 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(finalNormedRefs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `+residual2 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(residual2Refs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `mlp_out 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(mlpOutRefs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `SiLU(g)u 2x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(siluMulRefs)),
+          rows: ['c0', 'c1'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `gate 2x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(gateRefs)),
+          rows: ['c0', 'c1'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `up 2x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(upRefs)),
+          rows: ['c0', 'c1'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `post_normed 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(postNormedRefs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `+residual1 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(residual1Refs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `attn_out 3x${logitsTokenIndices.length}`,
+          refs: transposeRefs(selectOutputTokenRows(attnOutRefs)),
+          rows: ['c0', 'c1', 'c2'],
+          cols: logitsTokenLabels,
+        },
+        {
+          title: `attn_weight ${ATTN_HEADS}x${n}x${n}`,
+          type: 'head-stack',
+          refsByHead: attnWeightByHeadRefs,
+          rows: tokenLabels,
+          cols: tokenLabels,
+        },
+        {
+          title: `attn_score_by_head ${ATTN_HEADS}x${n}x${n}`,
+          type: 'head-stack',
+          refsByHead: attnScoreByHeadRefs,
+          rows: tokenLabels,
+          cols: tokenLabels,
+        },
+        {
+          title: `K heads (RoPE) 2x${n}`,
+          refs: transposeRefs(kHeadRefs),
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `Q heads (RoPE) 8x${n}`,
+          refs: transposeRefs(qHeadRefs),
+          rows: dim8Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `V normed 2x${n}`,
+          type: 'head-stack',
+          refsByHead: vNormByHeadRefs,
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `K normed 2x${n}`,
+          refs: transposeRefs(kNormRefs),
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `Q normed 8x${n}`,
+          refs: transposeRefs(qNormRefs),
+          rows: dim8Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `V 2x${n}`,
+          refs: transposeRefs(vRawRefs),
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `K 2x${n}`,
+          refs: transposeRefs(kRawRefs),
+          rows: dim2Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `Q 8x${n}`,
+          refs: transposeRefs(qRawRefs),
+          rows: dim8Labels,
+          cols: tokenLabels,
+        },
+        {
+          title: `normed 3x${n}`,
+          refs: transposeRefs(normedRefs),
+          rows: ['c0', 'c1', 'c2'],
+          cols: tokenLabels,
+        },
+        {
+          title: `embedded 3x${n}`,
+          refs: transposeRefs(embeddedRefs),
+          rows: ['c0', 'c1', 'c2'],
+          cols: tokenLabels,
+        },
       ];
 
-      for (let i = 0; i < rows.length; i += 1) {
-        const tr = document.createElement("tr");
-        const th = document.createElement("th");
-        th.textContent = rows[i][0];
-        tr.appendChild(th);
-        const td = document.createElement("td");
-        td.className = rows[i][2];
-        const shown = rows[i][1];
-        td.textContent = shown;
-        markExactZeroCell(td, shown);
-        tr.appendChild(td);
-        table.appendChild(tr);
-      }
-
-      holder.appendChild(table);
-    }
-
-    function renderTokens(tokens, inputCount) {
-      const holder = document.getElementById("tokenStream");
-      holder.innerHTML = "";
-      const table = document.createElement("table");
-      table.className = "sheet token-table";
-
-      const idxRow = document.createElement("tr");
-      const idxLabel = document.createElement("th");
-      idxLabel.textContent = "idx";
-      idxRow.appendChild(idxLabel);
-      for (let i = 0; i < tokens.length; i += 1) {
-        const th = document.createElement("th");
-        th.textContent = "t" + i;
-        idxRow.appendChild(th);
-      }
-      table.appendChild(idxRow);
-
-      const tokRow = document.createElement("tr");
-      const tokLabel = document.createElement("th");
-      tokLabel.textContent = "tok";
-      tokRow.appendChild(tokLabel);
-      for (let i = 0; i < tokens.length; i += 1) {
-        const td = document.createElement("td");
-        td.className = i < inputCount ? "input" : "output";
-        const shown = String(tokens[i]);
-        td.textContent = shown;
-        markExactZeroCell(td, shown);
-        tokRow.appendChild(td);
-      }
-      table.appendChild(tokRow);
-
-      holder.appendChild(table);
-    }
-
-    function renderWeightsSide() {
-      const side = document.getElementById("weightsSide");
-      side.innerHTML = "";
-
-      side.appendChild(makeMatrix("embed", WEIGHTS.embed, "param", { tableId: TABLE_IDS.w_embed }));
-      side.appendChild(makeVector("input_norm", WEIGHTS.input_norm, "param", { tableId: TABLE_IDS.w_input_norm }));
-      side.appendChild(makeMatrix("q_proj", WEIGHTS.q_proj, "param", { tableId: TABLE_IDS.w_q_proj }));
-      side.appendChild(makeMatrix("k_proj", WEIGHTS.k_proj, "param", { tableId: TABLE_IDS.w_k_proj }));
-      side.appendChild(makeMatrix("v_proj", WEIGHTS.v_proj, "param", { tableId: TABLE_IDS.w_v_proj }));
-      side.appendChild(makeVector("q_norm", WEIGHTS.q_norm, "param", { tableId: TABLE_IDS.w_q_norm }));
-      side.appendChild(makeVector("k_norm", WEIGHTS.k_norm, "param", { tableId: TABLE_IDS.w_k_norm }));
-      side.appendChild(makeMatrix("o_proj", WEIGHTS.o_proj, "param", { tableId: TABLE_IDS.w_o_proj }));
-      side.appendChild(makeVector("post_attn_norm", WEIGHTS.post_attn_norm, "param", { tableId: TABLE_IDS.w_post_attn_norm }));
-      side.appendChild(makeMatrix("gate_proj", WEIGHTS.gate_proj, "param", { tableId: TABLE_IDS.w_gate_proj }));
-      side.appendChild(makeMatrix("up_proj", WEIGHTS.up_proj, "param", { tableId: TABLE_IDS.w_up_proj }));
-      side.appendChild(makeMatrix("down_proj", WEIGHTS.down_proj, "param", { tableId: TABLE_IDS.w_down_proj }));
-      side.appendChild(makeVector("final_norm", WEIGHTS.final_norm, "param", { tableId: TABLE_IDS.w_final_norm }));
-    }
-
-    function clearArchitectureSlots() {
-      const slotIds = [
-        "slotHiddenTop",
-        "slotAttnScore",
-        "slotAttnWeight",
-        "slotQuery",
-        "slotKey",
-        "slotValue",
-        "slotPosQ",
-        "slotPosK",
-        "slotHiddenBottom"
-      ];
-      for (let i = 0; i < slotIds.length; i += 1) {
-        document.getElementById(slotIds[i]).innerHTML = "";
+      for (const row of rows) {
+        if (row.type === 'head-stack') {
+          flowColumn.appendChild(renderHeadMatricesSideBySide(row.title, row.refsByHead, row.rows, row.cols, 'intermediate'));
+          continue;
+        }
+        flowColumn.appendChild(renderMatrix(row.title, row.refs, row.rows, row.cols, 'intermediate'));
       }
     }
 
-    function renderArchitecture(seq) {
-      clearArchitectureSlots();
-
-      const tLen = seq.normed.length;
-      const tLabels = Array.from({ length: tLen }, (_, i) => "t" + i);
-
-      const hiddenTop = transpose(seq.normed);
-      const queryStates = transpose(seq.q);
-      const keyStates = transpose(seq.k);
-      const valueStates = transpose(seq.v);
-      const attnScoreH0 = seq.attn_scores[0];
-      const attnWeightH0 = seq.attn_weights[0];
-      const hiddenBottom = transpose(seq.attn_out);
-
-      const pos = [
-        Array.from({ length: tLen }, (_, i) => Math.cos(i)),
-        Array.from({ length: tLen }, (_, i) => Math.sin(i))
-      ];
-
-      document.getElementById("slotHiddenTop").appendChild(
-        makeMatrix("hidden_states", hiddenTop, "intermediate", {
-          tableId: TABLE_IDS.arch_hidden_top,
-          rowLabels: ["d0", "d1", "d2"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotAttnScore").appendChild(
-        makeMatrix("attn_score", attnScoreH0, "intermediate", {
-          tableId: TABLE_IDS.arch_attn_score_h0,
-          rowLabels: tLabels,
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotAttnWeight").appendChild(
-        makeMatrix("attn_weight", attnWeightH0, "intermediate", {
-          tableId: TABLE_IDS.arch_attn_weight_h0,
-          rowLabels: tLabels,
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotQuery").appendChild(
-        makeMatrix("query_states", queryStates, "intermediate", {
-          tableId: TABLE_IDS.arch_query_states,
-          rowLabels: Array.from({ length: 8 }, (_, i) => "q" + i),
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotKey").appendChild(
-        makeMatrix("key_states", keyStates, "intermediate", {
-          tableId: TABLE_IDS.arch_key_states,
-          rowLabels: ["k0", "k1"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotValue").appendChild(
-        makeMatrix("value_states", valueStates, "intermediate", {
-          tableId: TABLE_IDS.arch_value_states,
-          rowLabels: ["v0", "v1"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotPosQ").appendChild(
-        makeMatrix("position_embeddings", pos, "intermediate", {
-          tableId: TABLE_IDS.arch_pos_q,
-          rowLabels: ["cos", "sin"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotPosK").appendChild(
-        makeMatrix("position_embeddings", pos, "intermediate", {
-          tableId: TABLE_IDS.arch_pos_k,
-          rowLabels: ["cos", "sin"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
-      document.getElementById("slotHiddenBottom").appendChild(
-        makeMatrix("hidden_states", hiddenBottom, "intermediate", {
-          tableId: TABLE_IDS.arch_hidden_bottom,
-          rowLabels: ["d0", "d1", "d2"],
-          colLabels: tLabels,
-          dense: true
-        })
-      );
+    function renderTokens(tokens) {
+      tokenRow.innerHTML = '';
+      appState.visibleNodeIds = appState.visibleNodeIds || new Set();
+      for (let i = 0; i < tokens.length; i++) {
+        const tok = document.createElement('span');
+        tok.className = `token-cell ${i < INPUT_TOKENS ? 'token-input' : 'token-output'}`;
+        appState.visibleNodeIds.add(`tok.t${i}`);
+        tok.textContent = String(tokens[i]);
+        tok.dataset.cellId = `tok.t${i}`;
+        tok.addEventListener('click', () => onCellClick(tok.dataset.cellId));
+        tokenRow.appendChild(tok);
+      }
     }
 
-    function renderTraceRow(trace) {
-      const holder = document.getElementById("traceRow");
-      holder.innerHTML = "";
+    function redrawSelection() {
+      const all = document.querySelectorAll('.cell, .token-cell');
+      for (const el of all) {
+        el.classList.remove('selected', 'parent', 'child');
+      }
 
-      const specs = [
-        ["embedded", trace.embedded, "intermediate", false, TABLE_IDS.tr_embedded],
-        ["normed", trace.normed, "intermediate", false, TABLE_IDS.tr_normed],
-        ["Q", trace.Q, "intermediate", false, TABLE_IDS.tr_Q],
-        ["K", trace.K, "intermediate", false, TABLE_IDS.tr_K],
-        ["V", trace.V, "intermediate", false, TABLE_IDS.tr_V],
-        ["Q heads (RoPE)", trace.q_heads_rope, "intermediate", false, TABLE_IDS.tr_q_heads_rope],
-        ["attn_weight", trace.attn_weight_last, "intermediate", true, TABLE_IDS.tr_attn_weight],
-        ["attn_out", trace.attn_out, "intermediate", false, TABLE_IDS.tr_attn_out],
-        ["+residual1", trace.residual1, "intermediate", false, TABLE_IDS.tr_residual1],
-        ["post_normed", trace.post_normed, "intermediate", false, TABLE_IDS.tr_post_normed],
-        ["gate", trace.gate, "intermediate", false, TABLE_IDS.tr_gate],
-        ["up", trace.up, "intermediate", false, TABLE_IDS.tr_up],
-        ["SiLU(g)xu", trace.silu_mul_up, "intermediate", false, TABLE_IDS.tr_silu_mul_up],
-        ["mlp_out", trace.mlp_out, "intermediate", false, TABLE_IDS.tr_mlp_out],
-        ["+residual2", trace.residual2, "intermediate", false, TABLE_IDS.tr_residual2],
-        ["final_normed", trace.final_normed, "intermediate", false, TABLE_IDS.tr_final_normed],
-        ["logits x10", trace.logits, "output", false, TABLE_IDS.tr_logits]
-      ];
+      if (!appState.selection.id || appState.selection.mode === 'none') return;
 
-      for (let i = 0; i < specs.length; i += 1) {
-        if (specs[i][3]) {
-          const cols = trace.attn_weight_last[0].length;
-          holder.appendChild(
-            makeMatrix(specs[i][0], specs[i][1], specs[i][2], {
-              tableId: specs[i][4],
-              rowLabels: ["h0", "h1", "h2", "h3"],
-              colLabels: Array.from({ length: cols }, (_, c) => "t" + c)
-            })
-          );
-        } else {
-          holder.appendChild(makeVector(specs[i][0], specs[i][1], specs[i][2], { tableId: specs[i][4] }));
+      const selectedEl = document.querySelector(`[data-cell-id="${appState.selection.id}"]`);
+      if (selectedEl) selectedEl.classList.add('selected');
+
+      const node = appState.nodes.get(appState.selection.id);
+      if (!node) return;
+
+      if (appState.selection.mode === 'sink') {
+        for (const p of node.parents) {
+          const el = document.querySelector(`[data-cell-id="${p}"]`);
+          if (el) el.classList.add('parent');
+        }
+      } else if (appState.selection.mode === 'source') {
+        for (const c of node.children) {
+          const el = document.querySelector(`[data-cell-id="${c}"]`);
+          if (el) el.classList.add('child');
         }
       }
     }
 
-    function randomAddend() {
-      return Math.floor(Math.random() * 10000000000);
+    function cellPoint(cellId) {
+      const el = document.querySelector(`[data-cell-id="${cellId}"]`);
+      if (!el) return null;
+      const er = el.getBoundingClientRect();
+      const sr = sheet.getBoundingClientRect();
+      return {
+        x: er.left + er.width / 2 - sr.left + layout.scrollLeft,
+        y: er.top + er.height / 2 - sr.top + layout.scrollTop,
+      };
     }
 
-    function readAddend(id) {
-      const raw = document.getElementById(id).value.trim();
-      if (!/^\d+$/.test(raw)) {
-        throw new Error("invalid");
-      }
-      const n = BigInt(raw);
-      if (n < 0n || n > MAX_ADDEND) {
-        throw new Error("invalid");
-      }
-      return Number(n);
+    function drawPath(a, b) {
+      const curve = Math.min(70, Math.abs(b.y - a.y) * 0.3);
+      return `M ${a.x} ${a.y} C ${a.x} ${a.y + curve}, ${b.x} ${b.y - curve}, ${b.x} ${b.y}`;
     }
 
-    function computeAndRender() {
-      const previousActive = ACTIVE_CELL_ID;
-      const previousMode = ACTIVE_TRACE_MODE;
-      let a;
-      let b;
-      try {
-        a = readAddend("aInput");
-        b = readAddend("bInput");
-      } catch (err) {
-        ACTIVE_CELL_ID = null;
-        ACTIVE_TRACE_MODE = "none";
-        clearCellHighlights();
-        clearProvenanceOverlay();
-        renderResult("NaN", "NaN", false);
-        return;
+    function assertTargetAboveSource(sourcePoint, targetPoint, sourceId, targetId) {
+      const targetAboveSource = targetPoint.y < sourcePoint.y;
+      console.assert(
+        targetAboveSource,
+        `link invariant violated: expected target above source for ${sourceId} -> ${targetId} in rendered edge (${targetPoint.y} >= ${sourcePoint.y})`,
+        { sourcePoint, targetPoint },
+      );
+      return targetAboveSource;
+    }
+
+    function enforceTargetAboveSource(selectedPoint, otherPoint) {
+      if (!selectedPoint || !otherPoint) return null;
+      if (otherPoint.y > selectedPoint.y) {
+        return { source: otherPoint, target: selectedPoint };
       }
+      return { source: selectedPoint, target: otherPoint };
+    }
 
-      const run = runModel(a, b);
-      const modelDecoded = decodeLittleEndianDigits(run.outputTokens);
-      const expectedDecoded = (BigInt(a) + BigInt(b)).toString();
-      const expectedLittle = expectedOutputLittleEndian(a, b);
-      const modelLittle = run.outputTokens.join("");
-      const ok = modelLittle === expectedLittle && modelDecoded === expectedDecoded;
+    function redrawLinks() {
+      linkLayer.innerHTML = '';
+      if (!appState.selection.id || appState.selection.mode === 'none') return;
 
-      resetProvenanceRegistry();
-      renderWeightsSide();
-      renderTokens(run.fullTokens, run.inputTokens.length);
-      renderResult(modelDecoded, expectedDecoded, ok);
-      renderArchitecture(run.pass.seq);
-      renderTraceRow(run.pass.trace);
-      CELL_PARENTS = buildProvenance(run);
-      CELL_CHILDREN = buildChildrenMap(CELL_PARENTS);
-      if (previousActive && previousMode !== "none" && CELL_ELEMENTS.has(previousActive)) {
-        applyTraceMode(previousActive, previousMode);
+      const node = appState.nodes.get(appState.selection.id);
+      if (!node) return;
+
+      const ids = appState.selection.mode === 'sink' ? [...node.parents] : [...node.children];
+      if (ids.length === 0) return;
+
+      const contentWidth = Math.max(sheet.scrollWidth + 20, layout.clientWidth);
+      const contentHeight = Math.max(sheet.scrollHeight + 20, layout.clientHeight);
+      linkLayer.setAttribute('viewBox', `0 0 ${contentWidth} ${contentHeight}`);
+      linkLayer.setAttribute('width', String(contentWidth));
+      linkLayer.setAttribute('height', String(contentHeight));
+      linkLayer.setAttribute('style', `width:${contentWidth}px;height:${contentHeight}px;`);
+
+      const start = cellPoint(appState.selection.id);
+      if (!start) return;
+
+      for (const id of ids) {
+        const p = cellPoint(id);
+        if (!p) continue;
+        const source = appState.selection.mode === 'sink' ? p : start;
+        const target = appState.selection.mode === 'sink' ? start : p;
+        const oriented = enforceTargetAboveSource(source, target);
+        if (!oriented) continue;
+        const { source: src, target: dst } = oriented;
+        assertTargetAboveSource(src, dst, appState.selection.id, id);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', drawPath(src, dst));
+        path.setAttribute('class', 'line');
+        linkLayer.appendChild(path);
+      }
+    }
+
+    function renderAll(result) {
+      appState.visibleNodeIds = new Set();
+      renderTokens(result.tokens);
+      renderFlow(result, appState.generationSteps);
+      redrawSelection();
+      redrawLinks();
+    }
+
+    function onCellClick(id) {
+      if (appState.selection.id !== id) {
+        appState.selection.id = id;
+        appState.selection.mode = 'sink';
       } else {
-        ACTIVE_CELL_ID = null;
-        ACTIVE_TRACE_MODE = "none";
-        clearProvenanceOverlay();
+        if (appState.selection.mode === 'sink') {
+          appState.selection.mode = 'source';
+        } else if (appState.selection.mode === 'source') {
+          appState.selection.mode = 'none';
+          appState.selection.id = null;
+        } else {
+          appState.selection.mode = 'sink';
+        }
+      }
+      redrawSelection();
+      redrawLinks();
+    }
+
+    function validateGraph(n) {
+      const bad = [];
+      const visible = appState.visibleNodeIds;
+
+      for (const id of visible) {
+        const nnode = appState.nodes.get(id);
+        if (!nnode || typeof id !== 'string') continue;
+        if (nnode.category === 'param') continue;
+
+        if (id.startsWith('tok.t')) {
+          const idx = Number(id.slice(5));
+          const isBase = idx < INPUT_TOKENS;
+          if (isBase) {
+            if (nnode.parents.size !== 0) bad.push(`token base has parent: ${id}`);
+            // base tokens intentionally have no parents
+            continue;
+          }
+        }
+
+        const croppedAttnWeightSink = (() => {
+          if (!id.startsWith('act.attn_weight.h')) return false;
+          const m = id.match(/\.q(\d+)\.t\d+$/);
+          if (!m) return false;
+          return Number(m[1]) < INPUT_TOKENS;
+        })();
+
+        if (nnode.parents.size === 0) bad.push(`missing parent: ${id}`);
+        if (!croppedAttnWeightSink && nnode.category !== 'output' && nnode.children.size === 0) {
+          bad.push(`missing child: ${id}`);
+        }
+      }
+
+      validationText.textContent = bad.length
+        ? `link validation: ${bad.length} violation(s)`
+        : 'link validation: pass';
+
+      return bad;
+    }
+
+    function validateWeightVisibility() {
+      const bad = [];
+      const visibleWeights = appState.visibleWeightNodeIds || new Set();
+      const expectedWeights = new Set();
+
+      for (const [id, node] of appState.nodes.entries()) {
+        if (id.startsWith('param.')) {
+          expectedWeights.add(id);
+          if (node.category !== 'param') {
+            bad.push(`weight node has wrong category: ${id}`);
+          }
+          if (!visibleWeights.has(id)) {
+            bad.push(`hidden weight node: ${id}`);
+          }
+        }
+      }
+
+      for (const id of visibleWeights) {
+        if (!expectedWeights.has(id)) {
+          bad.push(`unexpected weight render target: ${id}`);
+        }
+      }
+
+      return bad;
+    }
+
+    function validateActivationVisibility() {
+      const expected = new Set();
+      const visible = appState.visibleNodeIds || new Set();
+
+      for (const id of appState.nodes.keys()) {
+        if (id.startsWith('act.') || id.startsWith('tok.')) {
+          expected.add(id);
+        }
+      }
+
+      const bad = [];
+      for (const id of expected) {
+        if (!visible.has(id)) {
+          bad.push(`hidden activation node: ${id}`);
+        }
+      }
+
+      for (const id of visible) {
+        if ((id.startsWith('act.') || id.startsWith('tok.')) && !appState.nodes.has(id)) {
+          bad.push(`unexpected visible node: ${id}`);
+        }
+      }
+
+      return bad;
+    }
+
+    function collectRenderedCellPoints(visible) {
+      const points = new Map();
+      const sr = sheet.getBoundingClientRect();
+      const nodes = sheet.querySelectorAll('.cell[data-cell-id], .token-cell[data-cell-id]');
+      for (const node of nodes) {
+        const id = node.dataset.cellId;
+        if (!id || (visible && !visible.has(id))) continue;
+        const er = node.getBoundingClientRect();
+        points.set(id, {
+          x: er.left + er.width / 2 - sr.left + layout.scrollLeft,
+          y: er.top + er.height / 2 - sr.top + layout.scrollTop,
+        });
+      }
+      return points;
+    }
+
+    function validateTargetAboveSourceVisualLayout() {
+      const bad = [];
+      const visible = appState.visibleNodeIds || new Set();
+      const points = collectRenderedCellPoints(visible);
+
+      for (const [childId, childNode] of appState.nodes.entries()) {
+        if (!visible.has(childId) || !childNode || !childNode.parents || childNode.parents.size === 0) continue;
+
+        const targetPoint = points.get(childId);
+        if (!targetPoint) continue;
+
+        for (const parentId of childNode.parents) {
+          const sourcePoint = points.get(parentId);
+          if (!sourcePoint) continue;
+          if (!(targetPoint.y < sourcePoint.y)) {
+            bad.push(`${childId} not above parent ${parentId}`);
+          }
+        }
+      }
+
+      return bad;
+    }
+
+    function updateValidationMessages(linkBad, activationBad, weightBad, layoutBad) {
+      const issues = [];
+      const allBad = [...linkBad, ...activationBad, ...weightBad, ...(layoutBad || [])];
+      if (layoutBad && layoutBad.length) {
+        issues.push(`layout=${layoutBad.length}`);
+      }
+      if (linkBad.length) {
+        issues.push(`links=${linkBad.length}`);
+      }
+      if (activationBad.length) {
+        issues.push(`hidden-activations=${activationBad.length}`);
+      }
+      if (weightBad.length) {
+        issues.push(`hidden-weights=${weightBad.length}`);
+      }
+      validationText.textContent = issues.length ? `validation: ${issues.join(', ')}` : 'validation: pass';
+      if (allBad.length) {
+        console.error('visibility validation failed', allBad);
+      } else {
+        console.debug('visibility check passed: no hidden activations or weights');
+      }
+      return issues.length === 0;
+    }
+
+    function attachGenerationLineage(graph, generatedSteps) {
+      const connect = (id, parents = []) => {
+        const existing = graph.get(id);
+        const value = existing ? existing.value : 0;
+        const category = existing ? existing.category : 'output';
+        addNode(graph, id, value, category, parents);
+      };
+      const emitNode = (id, value, parents = []) => addNode(graph, id, value, 'intermediate', parents);
+
+      for (let i = 0; i < generatedSteps.length; i++) {
+        const step = generatedSteps[i];
+        const tokenId = `tok.t${step.index}`;
+        const argmaxId = `act.generation_argmax.o${i}`;
+        const logitIds = Array.from({ length: VOCAB }, (_, d) => `act.logits.t${step.index}.c${d}`);
+        emitNode(argmaxId, step.token, logitIds);
+        connect(tokenId, [argmaxId]);
       }
     }
 
-    function bindControls() {
-      const computeBtn = document.getElementById("computeBtn");
-      const randomBtn = document.getElementById("randomBtn");
-      computeBtn.addEventListener("click", computeAndRender);
-      randomBtn.addEventListener("click", () => {
-        document.getElementById("aInput").value = String(randomAddend());
-        document.getElementById("bInput").value = String(randomAddend());
-        computeAndRender();
-      });
-      document.getElementById("aInput").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          computeAndRender();
-        }
-      });
-      document.getElementById("bInput").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          computeAndRender();
-        }
-      });
+    function forwardAndRender() {
+      const a = Math.max(0, Math.min(MAX_VAL, Math.floor(Number(aInput.value) || 0)));
+      const b = Math.max(0, Math.min(MAX_VAL, Math.floor(Number(bInput.value) || 0)));
+
+      let tokens = encodeInputs(a, b);
+      statusText.textContent = 'running';
+      const generationSteps = [];
+
+      for (let i = 0; i < OUTPUT_DIGITS; i++) {
+        const step = forward(tokens);
+        const pred = argMax(step.logits);
+        generationSteps.push({
+          index: tokens.length,
+          logits: step.logits,
+          token: pred,
+        });
+        tokens.push(pred);
+      }
+
+      // full trace graph uses the full emitted token stream
+      const result = forward(tokens, true);
+      attachGenerationLineage(result.graph, generationSteps);
+      appState.nodes = result.graph.nodes;
+      appState.lastTensorLength = result.n;
+      appState.generationSteps = generationSteps;
+
+      renderWeights();
+      renderAll(result);
+
+      const modelDigits = decodeDigitsFromTokens(tokens);
+      const expected = expectedOutputStr(a, b).toString();
+      modelText.textContent = parseDigitsToNumberOrBigInt(modelDigits).toString();
+      expectedText.textContent = expected.toString();
+      checkText.textContent = trimLeadingZeros(modelDigits) === trimLeadingZeros(expected) ? '1' : '0';
+
+      const bad = validateGraph(result.n);
+      const weightBad = validateWeightVisibility();
+      const activationBad = validateActivationVisibility();
+      const layoutBad = validateTargetAboveSourceVisualLayout();
+      const valid = updateValidationMessages(bad, activationBad, weightBad, layoutBad);
+      statusText.textContent = valid ? 'ready' : 'invalid graph';
     }
 
-    function bindProvenanceInteractions() {
-      const canvas = document.querySelector(".canvas");
-      canvas.addEventListener("click", (e) => {
-        const cell = e.target.closest("td[data-cell-id]");
-        if (!cell) {
-          return;
-        }
-        toggleTraceForCell(cell.dataset.cellId);
-      });
-      document.addEventListener("scroll", scheduleProvenanceRedraw, true);
-      window.addEventListener("resize", scheduleProvenanceRedraw);
-    }
-
-    function runVerificationPairs() {
-      const pairs = [
-        [5, 7, "12"],
-        [9999999999, 1, "10000000000"],
-        [1234567890, 9876543210, "11111111100"],
-        [0, 0, "0"],
-        [9999999999, 9999999999, "19999999998"]
+    function runSanity() {
+      const tests = [
+        [5, 7],
+        [9999999999, 1],
+        [1234567890, 9876543210],
+        [0, 0],
+        [9999999999, 9999999999],
       ];
-      for (let i = 0; i < pairs.length; i += 1) {
-        const a = pairs[i][0];
-        const b = pairs[i][1];
-        const expected = pairs[i][2];
-        const run = runModel(a, b);
-        const decoded = decodeLittleEndianDigits(run.outputTokens);
-        if (decoded !== expected) {
-          throw new Error("verification failed: " + a + " + " + b + " -> " + decoded);
+      const bad = [];
+
+      for (const [a, b] of tests) {
+        let tokens = encodeInputs(a, b);
+        for (let i = 0; i < OUTPUT_DIGITS; i++) {
+          const step = forward(tokens);
+          tokens.push(argMax(step.logits));
         }
+        const got = parseDigitsToNumberOrBigInt(decodeDigitsFromTokens(tokens));
+        const expected = expectedOutputStr(a, b);
+        if (got !== expected) bad.push(`${a}+${b} -> ${got} != ${expected}`);
       }
-      return true;
+      return bad;
     }
 
-    function init() {
-      renderTopBar();
-      renderWeightsSide();
-      bindProvenanceInteractions();
-      bindControls();
-      computeAndRender();
-      window.__verify121 = runVerificationPairs;
-    }
+    const sanity = runSanity();
+    statusText.textContent = sanity.length ? 'sanity failed' : 'sanity ok';
+    forwardAndRender();
 
-    init();
+    document.getElementById('computeBtn').addEventListener('click', () => {
+      appState.selection.id = null;
+      appState.selection.mode = 'none';
+      forwardAndRender();
+    });
+
+    document.getElementById('randomBtn').addEventListener('click', () => {
+      aInput.value = Math.floor(Math.random() * (MAX_VAL + 1));
+      bInput.value = Math.floor(Math.random() * (MAX_VAL + 1));
+      appState.selection.id = null;
+      appState.selection.mode = 'none';
+      forwardAndRender();
+    });
+
+    layout.addEventListener('scroll', () => redrawLinks());
+    window.addEventListener('resize', () => redrawLinks());
   </script>
 </body>
 </html>
