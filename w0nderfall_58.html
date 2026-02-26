@@ -34,6 +34,7 @@
       min-width: 1600px;
       padding: 10px;
       width: 100%;
+      position: relative;
     }
 
     .top {
@@ -348,7 +349,7 @@
 
     .link-layer {
       position: absolute;
-      inset: 10px;
+      inset: 0;
       width: 0;
       height: 0;
       pointer-events: none;
@@ -402,8 +403,8 @@
         <div class="weights" id="weightsColumn"></div>
         <div class="flow" id="flowColumn"></div>
       </div>
-      <svg class="link-layer" id="linkLayer"></svg>
     </div>
+    <svg class="link-layer" id="linkLayer"></svg>
 
     <div class="status" id="validationText">-</div>
   </div>
@@ -499,6 +500,7 @@
     const tokenRow = document.getElementById('tokenRow');
     const flowColumn = document.getElementById('flowColumn');
     const weightsColumn = document.getElementById('weightsColumn');
+    const app = document.querySelector('.app');
     const linkLayer = document.getElementById('linkLayer');
     const layout = document.getElementById('layout');
     const sheet = document.getElementById('sheet');
@@ -1628,10 +1630,10 @@
       const el = document.querySelector(`[data-cell-id="${cellId}"]`);
       if (!el) return null;
       const er = el.getBoundingClientRect();
-      const sr = sheet.getBoundingClientRect();
+      const ar = app.getBoundingClientRect();
       return {
-        x: er.left + er.width / 2 - sr.left + layout.scrollLeft,
-        y: er.top + er.height / 2 - sr.top + layout.scrollTop,
+        x: er.left + er.width / 2 - ar.left + window.scrollX,
+        y: er.top + er.height / 2 - ar.top + window.scrollY,
       };
     }
 
@@ -1668,8 +1670,8 @@
       const ids = appState.selection.mode === 'sink' ? [...node.parents] : [...node.children];
       if (ids.length === 0) return;
 
-      const contentWidth = Math.max(sheet.scrollWidth + 20, layout.clientWidth);
-      const contentHeight = Math.max(sheet.scrollHeight + 20, layout.clientHeight);
+      const contentWidth = app.scrollWidth;
+      const contentHeight = app.scrollHeight;
       linkLayer.setAttribute('viewBox', `0 0 ${contentWidth} ${contentHeight}`);
       linkLayer.setAttribute('width', String(contentWidth));
       linkLayer.setAttribute('height', String(contentHeight));

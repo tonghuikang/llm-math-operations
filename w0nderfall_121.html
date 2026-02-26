@@ -34,6 +34,7 @@
       min-width: 1600px;
       padding: 10px;
       width: 100%;
+      position: relative;
     }
 
     .top {
@@ -125,6 +126,20 @@
       display: inline-flex;
       gap: 2px;
       align-items: center;
+    }
+
+    .token-wrap {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .token-label {
+      font-size: 9px;
+      color: #59647d;
+      font-weight: 600;
+      line-height: 1;
     }
 
     .token-cell {
@@ -326,7 +341,7 @@
 
     .link-layer {
       position: absolute;
-      inset: 10px;
+      inset: 0;
       width: 0;
       height: 0;
       pointer-events: none;
@@ -380,8 +395,8 @@
         <div class="weights" id="weightsColumn"></div>
         <div class="flow" id="flowColumn"></div>
       </div>
-      <svg class="link-layer" id="linkLayer"></svg>
     </div>
+    <svg class="link-layer" id="linkLayer"></svg>
 
     <div class="status" id="validationText">-</div>
   </div>
@@ -480,6 +495,7 @@
     const tokenRow = document.getElementById('tokenRow');
     const flowColumn = document.getElementById('flowColumn');
     const weightsColumn = document.getElementById('weightsColumn');
+    const app = document.querySelector('.app');
     const linkLayer = document.getElementById('linkLayer');
     const layout = document.getElementById('layout');
     const sheet = document.getElementById('sheet');
@@ -746,8 +762,9 @@
       const qIndex = n - 1;
       const traceMode = trace === true;
       const scoreStart = traceMode ? 0 : qIndex;
-      const layerStart = traceMode ? INPUT_TOKENS : qIndex;
-      const materializeOutputSpan = (t) => t >= INPUT_TOKENS;
+      const scoreEnd = traceMode ? n - 1 : n;
+      const layerStart = traceMode ? INPUT_TOKENS - 1 : qIndex;
+      const materializeOutputSpan = (t) => t >= INPUT_TOKENS - 1 && t < n - 1;
       const tokenIds = new Array(n);
 
       const embedded = Array.from({ length: n }, () => Array(MODEL_DIM).fill(0));
@@ -802,17 +819,19 @@
         tokenIds[t] = tokId;
         g.put(tokId, tok, tokCat);
 
-        for (let c = 0; c < MODEL_DIM; c++) {
-          const val = PARAMS.embed[tok][c];
-          const eid = `act.embedded.t${t}.c${c}`;
-          embedded[t][c] = val;
-          put(eid, val, 'intermediate', [tokId, `param.embed.r${tok}.c${c}`]);
-          refs.embedded[t][c] = eid;
+        if (t < scoreEnd) {
+          for (let c = 0; c < MODEL_DIM; c++) {
+            const val = PARAMS.embed[tok][c];
+            const eid = `act.embedded.t${t}.c${c}`;
+            embedded[t][c] = val;
+            put(eid, val, 'intermediate', [tokId, `param.embed.r${tok}.c${c}`]);
+            refs.embedded[t][c] = eid;
+          }
         }
       }
 
       // input norm for each token
-      for (let t = 0; t < n; t++) {
+      for (let t = 0; t < scoreEnd; t++) {
         const v = embedded[t];
         const out = rmsNorm(v, PARAMS.input_norm);
         normed[t] = out;
@@ -824,7 +843,7 @@
       }
 
       // q/k/v projection for each token
-      for (let t = 0; t < n; t++) {
+      for (let t = 0; t < scoreEnd; t++) {
         for (let o = 0; o < 8; o++) {
           let s = 0;
           const id = `act.q_raw.t${t}.c${o}`;
@@ -854,7 +873,7 @@
       }
 
       // q/k/v norm + rope
-      for (let t = 0; t < n; t++) {
+      for (let t = 0; t < scoreEnd; t++) {
         for (let h = 0; h < ATTN_HEADS; h++) {
           const b0 = h * 2;
           const pair = [qRaw[t][b0], qRaw[t][b0 + 1]];
@@ -928,13 +947,13 @@
         Array.from({ length: n }, () => Array(n).fill(0)),
       );
 
-      for (let q = scoreStart; q < n; q++) {
+      for (let q = scoreStart; q < scoreEnd; q++) {
         const qScoreParentsByHead = Array.from({ length: ATTN_HEADS }, (_, h) => {
           const qBase = h * 2;
           return [`act.q_heads.t${q}.c${qBase}`, `act.q_heads.t${q}.c${qBase + 1}`];
         });
 
-        for (let k = 0; k < n; k++) {
+        for (let k = 0; k < scoreEnd; k++) {
           for (let h = 0; h < ATTN_HEADS; h++) {
             const qBase = h * 2;
             const raw = k <= q
@@ -949,9 +968,9 @@
 
         for (let h = 0; h < ATTN_HEADS; h++) {
           const row = softmaxVec(attnScoreByHead[h][q]);
-          const rowScoreRefs = Array.from({ length: n }, (_, k) => `act.attn_score.h${h}.q${q}.t${k}`);
+          const rowScoreRefs = Array.from({ length: scoreEnd }, (_, k) => `act.attn_score.h${h}.q${q}.t${k}`);
 
-          for (let k = 0; k < n; k++) {
+          for (let k = 0; k < scoreEnd; k++) {
             attnWeightByHead[h][q][k] = row[k];
             const wid = `act.attn_weight.h${h}.q${q}.t${k}`;
             refs.attnWeightByHead[h][q][k] = wid;
@@ -968,7 +987,7 @@
               const w0 = PARAMS.o_proj[d][b];
               const w1 = PARAMS.o_proj[d][b + 1];
               outParents.push(`param.o_proj.r${d}.c${b}`, `param.o_proj.r${d}.c${b + 1}`);
-              for (let k = 0; k < n; k++) {
+              for (let k = 0; k < scoreEnd; k++) {
                 const w = attnWeightByHead[h][q][k];
                 s += w * (vNorm[k][0] * w0 + vNorm[k][1] * w1);
                 outParents.push(`act.attn_weight.h${h}.q${q}.t${k}`, `act.v_norm.t${k}.c0`, `act.v_norm.t${k}.c1`);
@@ -1316,24 +1335,25 @@
     function renderFlow(result, generationSteps) {
       flowColumn.innerHTML = '';
       const n = result.n;
+      const attnN = n - 1;
       const attnScoreByHeadRefs = Array.from(
         { length: ATTN_HEADS },
-        () => Array.from({ length: n }, (_, q) => Array.from({ length: n }, (_, k) => '')),
+        () => Array.from({ length: attnN }, (_, q) => Array.from({ length: attnN }, (_, k) => '')),
       );
       const attnWeightByHeadRefs = Array.from(
         { length: ATTN_HEADS },
-        () => Array.from({ length: n }, (_, q) => Array.from({ length: n }, (_, k) => '')),
+        () => Array.from({ length: attnN }, (_, q) => Array.from({ length: attnN }, (_, k) => '')),
       );
       for (let h = 0; h < ATTN_HEADS; h++) {
-        for (let q = 0; q < n; q++) {
-          for (let k = 0; k < n; k++) {
+        for (let q = 0; q < attnN; q++) {
+          for (let k = 0; k < attnN; k++) {
             // Transposed display: row axis = key token k, column axis = query token q.
             attnScoreByHeadRefs[h][k][q] = `act.attn_score.h${h}.q${q}.t${k}`;
             attnWeightByHeadRefs[h][k][q] = `act.attn_weight.h${h}.q${q}.t${k}`;
           }
         }
       }
-      const logitsTokenIndices = Array.from({ length: Math.max(0, n - INPUT_TOKENS) }, (_, i) => i + INPUT_TOKENS);
+      const logitsTokenIndices = Array.from({ length: Math.max(0, n - INPUT_TOKENS) }, (_, i) => i + INPUT_TOKENS - 1);
       const logitsTokenLabels = logitsTokenIndices.map((idx) => `t${idx}`);
       const actLogitsPerTokenRefs = Array.from({ length: VOCAB }, (_, c) =>
         logitsTokenIndices.map((q) => `act.logits.t${q}.c${c}`),
@@ -1358,8 +1378,9 @@
       const genSteps = generationSteps || [];
       const generationArgmaxRefs = Array.from({ length: genSteps.length }, (_, o) => `act.generation_argmax.o${o}`);
       const genLogitsCols = Array.from({ length: VOCAB }, (_, c) => `c${c}`);
-      const outLabels = Array.from({ length: genSteps.length }, (_, i) => `o${i}`);
+      const outLabels = genSteps.map((s) => `t${s.index}`);
       const tokenLabels = Array.from({ length: n }, (_, i) => `t${i}`);
+      const attnTokenLabels = Array.from({ length: attnN }, (_, i) => `t${i}`);
       const qHeadByHeadRefs = Array.from({ length: ATTN_HEADS }, (_, h) =>
         Array.from({ length: 2 }, (_, c) => Array.from({ length: n }, (_, t) => `act.q_heads.t${t}.c${h * 2 + c}`)),
       );
@@ -1442,79 +1463,79 @@
           cols: logitsTokenLabels,
         },
         {
-          title: `attn_weight ${ATTN_HEADS}x${n}x${n}`,
+          title: `attn_weight ${ATTN_HEADS}x${attnN}x${attnN}`,
           type: 'head-stack',
           refsByHead: attnWeightByHeadRefs,
-          rows: tokenLabels,
-          cols: tokenLabels,
+          rows: attnTokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `attn_score_by_head ${ATTN_HEADS}x${n}x${n}`,
+          title: `attn_score_by_head ${ATTN_HEADS}x${attnN}x${attnN}`,
           type: 'head-stack',
           refsByHead: attnScoreByHeadRefs,
-          rows: tokenLabels,
-          cols: tokenLabels,
+          rows: attnTokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `Q heads (RoPE) ${ATTN_HEADS}x2x${n}`,
+          title: `Q heads (RoPE) ${ATTN_HEADS}x2x${attnN}`,
           type: 'head-stack',
-          refsByHead: qHeadByHeadRefs,
+          refsByHead: qHeadByHeadRefs.map((h) => h.map((row) => row.slice(0, attnN))),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `K heads (RoPE) 2x${n}`,
-          refs: transposeRefs(kHeadRefs),
+          title: `K heads (RoPE) 2x${attnN}`,
+          refs: transposeRefs(kHeadRefs.slice(0, attnN)),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `V normed 2x${n}`,
-          refs: transposeRefs(vNormRefs),
+          title: `V normed 2x${attnN}`,
+          refs: transposeRefs(vNormRefs.slice(0, attnN)),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `Q normed 8x${n}`,
-          refs: transposeRefs(qNormRefs),
+          title: `Q normed 8x${attnN}`,
+          refs: transposeRefs(qNormRefs.slice(0, attnN)),
           rows: dim8Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `K normed 2x${n}`,
-          refs: transposeRefs(kNormRefs),
+          title: `K normed 2x${attnN}`,
+          refs: transposeRefs(kNormRefs.slice(0, attnN)),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `V 2x${n}`,
-          refs: transposeRefs(vRawRefs),
+          title: `V 2x${attnN}`,
+          refs: transposeRefs(vRawRefs.slice(0, attnN)),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `Q 8x${n}`,
-          refs: transposeRefs(qRawRefs),
+          title: `Q 8x${attnN}`,
+          refs: transposeRefs(qRawRefs.slice(0, attnN)),
           rows: dim8Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `K 2x${n}`,
-          refs: transposeRefs(kRawRefs),
+          title: `K 2x${attnN}`,
+          refs: transposeRefs(kRawRefs.slice(0, attnN)),
           rows: dim2Labels,
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `normed 3x${n}`,
-          refs: transposeRefs(normedRefs),
+          title: `normed 3x${attnN}`,
+          refs: transposeRefs(normedRefs.slice(0, attnN)),
           rows: ['c0', 'c1', 'c2'],
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
         {
-          title: `embedded 3x${n}`,
-          refs: transposeRefs(embeddedRefs),
+          title: `embedded 3x${attnN}`,
+          refs: transposeRefs(embeddedRefs.slice(0, attnN)),
           rows: ['c0', 'c1', 'c2'],
-          cols: tokenLabels,
+          cols: attnTokenLabels,
         },
       ];
 
@@ -1531,13 +1552,20 @@
       tokenRow.innerHTML = '';
       appState.visibleNodeIds = appState.visibleNodeIds || new Set();
       for (let i = 0; i < tokens.length; i++) {
+        const wrap = document.createElement('span');
+        wrap.className = 'token-wrap';
+        const label = document.createElement('span');
+        label.className = 'token-label';
+        label.textContent = `t${i}`;
         const tok = document.createElement('span');
         tok.className = `token-cell ${i < INPUT_TOKENS ? 'token-input' : 'token-output'}`;
         appState.visibleNodeIds.add(`tok.t${i}`);
         tok.textContent = String(tokens[i]);
         tok.dataset.cellId = `tok.t${i}`;
         tok.addEventListener('click', () => onCellClick(tok.dataset.cellId));
-        tokenRow.appendChild(tok);
+        wrap.appendChild(label);
+        wrap.appendChild(tok);
+        tokenRow.appendChild(wrap);
       }
     }
 
@@ -1572,10 +1600,10 @@
       const el = document.querySelector(`[data-cell-id="${cellId}"]`);
       if (!el) return null;
       const er = el.getBoundingClientRect();
-      const sr = sheet.getBoundingClientRect();
+      const ar = app.getBoundingClientRect();
       return {
-        x: er.left + er.width / 2 - sr.left + layout.scrollLeft,
-        y: er.top + er.height / 2 - sr.top + layout.scrollTop,
+        x: er.left + er.width / 2 - ar.left + window.scrollX,
+        y: er.top + er.height / 2 - ar.top + window.scrollY,
       };
     }
 
@@ -1612,8 +1640,8 @@
       const ids = appState.selection.mode === 'sink' ? [...node.parents] : [...node.children];
       if (ids.length === 0) return;
 
-      const contentWidth = Math.max(sheet.scrollWidth + 20, layout.clientWidth);
-      const contentHeight = Math.max(sheet.scrollHeight + 20, layout.clientHeight);
+      const contentWidth = app.scrollWidth;
+      const contentHeight = app.scrollHeight;
       linkLayer.setAttribute('viewBox', `0 0 ${contentWidth} ${contentHeight}`);
       linkLayer.setAttribute('width', String(contentWidth));
       linkLayer.setAttribute('height', String(contentHeight));
@@ -1688,10 +1716,15 @@
 
     function alignFlowLongMatricesToFirstHead() {
       const boxes = Array.from(flowColumn.querySelectorAll('.matrix-box'));
+      const outputCols = String(OUTPUT_DIGITS);
+      const longSpanCols = String(INPUT_TOKENS + OUTPUT_DIGITS - 1);
+      const isAlignTarget = (box) => {
+        if (box.dataset.layoutKind !== 'matrix') return false;
+        const c = box.dataset.cols;
+        return c === outputCols || c === longSpanCols;
+      };
       for (const box of boxes) {
-        if (box.dataset.layoutKind === 'matrix' && (box.dataset.cols === '11' || box.dataset.cols === '35')) {
-          box.style.marginLeft = '0px';
-        }
+        if (isAlignTarget(box)) box.style.marginLeft = '0px';
       }
 
       const firstHeadPanel = flowColumn.querySelector('.head-stack .head-panel');
@@ -1700,8 +1733,7 @@
       const anchorRight = headAnchor.getBoundingClientRect().right;
 
       for (const box of boxes) {
-        if (box.dataset.layoutKind !== 'matrix') continue;
-        if (box.dataset.cols !== '11' && box.dataset.cols !== '35') continue;
+        if (!isAlignTarget(box)) continue;
         const delta = Math.round(anchorRight - matrixGridRight(box));
         box.style.marginLeft = `${delta}px`;
       }
@@ -1892,7 +1924,7 @@
         const step = generatedSteps[i];
         const tokenId = `tok.t${step.index}`;
         const argmaxId = `act.generation_argmax.o${i}`;
-        const logitIds = Array.from({ length: VOCAB }, (_, d) => `act.logits.t${step.index}.c${d}`);
+        const logitIds = Array.from({ length: VOCAB }, (_, d) => `act.logits.t${step.index - 1}.c${d}`);
         emitNode(argmaxId, step.token, logitIds);
         connect(tokenId, [argmaxId]);
       }
