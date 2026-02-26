@@ -1387,7 +1387,7 @@
       const genSteps = generationSteps || [];
       const generationArgmaxRefs = Array.from({ length: genSteps.length }, (_, o) => `act.generation_argmax.o${o}`);
       const genLogitsCols = Array.from({ length: VOCAB }, (_, c) => `c${c}`);
-      const outLabels = Array.from({ length: genSteps.length }, (_, i) => `o${i}`);
+      const outLabels = genSteps.map((s) => `t${s.index}`);
       const tokenLabels = Array.from({ length: n }, (_, i) => `t${i}`);
       const qHeadByHeadRefs = Array.from({ length: ATTN_HEADS }, (_, h) =>
         Array.from({ length: HEAD_DIM }, (_, c) => Array.from({ length: n }, (_, t) => `act.q_heads.t${t}.c${h * HEAD_DIM + c}`)),
