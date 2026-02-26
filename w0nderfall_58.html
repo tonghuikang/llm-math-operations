@@ -1632,8 +1632,8 @@
       const er = el.getBoundingClientRect();
       const ar = app.getBoundingClientRect();
       return {
-        x: er.left + er.width / 2 - ar.left + window.scrollX,
-        y: er.top + er.height / 2 - ar.top + window.scrollY,
+        x: er.left + er.width / 2 - ar.left,
+        y: er.top + er.height / 2 - ar.top,
       };
     }
 
