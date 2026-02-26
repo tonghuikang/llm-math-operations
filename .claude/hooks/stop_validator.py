@@ -59,6 +59,8 @@ def validate_stop(transcript_path: str) -> list[str]:
                             ran_bash_after_edit = True
                         if content["name"] == "TaskCreate":
                             used_task_create_after_edit = True
+            if transcript["type"] == "user":
+                break
             if has_edits:
                 break
 
